@@ -1,0 +1,12 @@
+.main .block-container {
+    padding-top: 2.5em;
+}
+
+.main .block-container:nth-child(1) {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+.app_logo {
+    width: 33% !important;
+}

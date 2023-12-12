@@ -1,1 +1,0 @@
-# Knowlege-Graph-Visualizer

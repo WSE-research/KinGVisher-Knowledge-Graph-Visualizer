@@ -1,0 +1,19 @@
+img.svg_ascii_art {
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+}
+
+div[data-testid="caption"] {
+    font-size: 0.8rem;
+    color: #666;
+    text-align: center;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+div[data-testid="stVerticalBlock"] div[data-testid="stImage"] {
+    margin-left: auto;
+    margin-right: auto;
+}

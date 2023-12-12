@@ -1,0 +1,23 @@
+span.properties_whitelist::before {
+    content: "⬛ ";
+    color: #FFFFFF00 !important;
+    border: 1px solid #000000 !important;
+    background-color: #FFFFFF !important;
+    margin-right: 1ex;
+}
+
+span.properties_blacklist::before {
+    content: "⬛ ";
+    color: #00000000 !important;
+    border: 1px solid #000000 !important;
+    background-color: #000000 !important;
+    margin-right: 1ex;
+}
+
+span.start_resources::before {
+    content: "⬛ ";
+    color: #0000FF00 !important;
+    border: 1px solid #000000 !important;
+    background-color: #0000FF !important;
+    margin-right: 1ex;
+}

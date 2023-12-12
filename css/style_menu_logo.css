@@ -1,0 +1,17 @@
+#MainMenu {
+    visibility: hidden;
+}
+
+#WSElogo {
+    transition: transform .5s ease-in-out;
+    height: 4ex;
+    filter: drop-shadow(0 0 0.15ex #666);
+}
+
+#WSElogo:hover {
+    transform: rotate(720deg) scale(1.333);
+}
+
+.app_logo {
+    width: 66%;
+}
