@@ -8,6 +8,7 @@ import validators
 import time
 import os
 import math
+import random
 from decouple import config
 from util import include_css, download_image, save_uploaded_file, replace_values_in_index_html
 import json
@@ -20,19 +21,15 @@ from streamlit_agraph import agraph, Node, Edge, Config
 from streamlit_tags import st_tags, st_tags_sidebar
 import seaborn as sns
 
-EXPORT_IMAGE_ENDING = "-ascii-art.png"
 PAGE_ICON = config('PAGE_ICON')
 PAGE_IMAGE = config('PAGE_IMAGE')
 GITHUB_REPO = config('GITHUB_REPO')
 DESCRIPTION = config('DESCRIPTION').replace("\\n", "\n") % (GITHUB_REPO, GITHUB_REPO + "/issues/new", GITHUB_REPO + "/issues/new")
 META_DESCRIPTION = config('META_DESCRIPTION', default=None)
-
 REPLACE_INDEX_HTML_CONTENT = config('REPLACE_INDEX_HTML_CONTENT', default=False, cast=bool)
 CANONICAL_URL = config('CANONICAL_URL', default=None)
 ADDITIONAL_HTML_HEAD_CONTENT = config('ADDITIONAL_HTML_HEAD_CONTENT', default="")
 
-SOURCE_UPLOAD = "Upload"
-SOURCE_DOWNLOAD = "Download"
 PAGE_TITLE = "Knowledge Graph Visualizer"
 MIN_WIDTH = 10
 MAX_WIDTH = 300
@@ -71,6 +68,8 @@ PREFIXES = {
     "ps": "http://www.wikidata.org/prop/statement/",
     "pq": "http://www.wikidata.org/prop/qualifier/",
     "bd": "http://www.bigdata.com/rdf#",
+    "oa": "http://www.w3.org/ns/openannotation/core/",
+    "qa": "http://www.wdaqua.eu/qa#",
 }
 
 width = 60
@@ -102,7 +101,6 @@ replace_values_in_index_html(st, REPLACE_INDEX_HTML_CONTENT,
 </style>
 """
                             )
-
 st.set_page_config(layout="wide", initial_sidebar_state="expanded",
                    page_title=PAGE_TITLE,
                    page_icon=Image.open(PAGE_ICON)
@@ -128,7 +126,10 @@ with open(PAGE_IMAGE, "rb") as f:
         unsafe_allow_html=True,
     )
 
-sparql_endpoint = st.sidebar.text_input("SPARQL endpoint:", value=DBPEDIA_ENDPOINT, help="SPARQL endpoint to query, e.g., %s or %s" % (DBPEDIA_ENDPOINT, WIKIDATA_ENDPOINT))
+sparql_endpoint = st.sidebar.text_input("SPARQL endpoint:", key="sparql_endpoint", value=DBPEDIA_ENDPOINT, help="SPARQL endpoint to query, e.g., %s or %s" % (DBPEDIA_ENDPOINT, WIKIDATA_ENDPOINT))
+
+specific_graph = st.sidebar.text_input("Specific graph:", key="specific_graph", help="optional parameter")
+
 
 if sparql_endpoint != None and validators.url(sparql_endpoint):
     sparql = SPARQLWrapper(sparql_endpoint)
@@ -139,15 +140,9 @@ else:
     st.info("Please provide a valid SPARQL endpoint, e.g., %s or %s" % (DBPEDIA_ENDPOINT, WIKIDATA_ENDPOINT))
     st.stop()
 
-
-def execute_query_convert_and_count(sparql, query_string):
+def execute_query_convert(sparql_endpoint, query_string):
     try:
-        global number_of_requests
-        # number_of_requests += 1
-        sparql.setQuery(query_string)
-        sparql.setReturnFormat(JSON)
-        results = sparql.query().convert()
-        return results["results"]["bindings"]
+        return query_execution_and_convert(sparql_endpoint, query_string)
     except Exception as e:
         logging.error(e)
         logging.error(query_string)
@@ -155,8 +150,17 @@ def execute_query_convert_and_count(sparql, query_string):
         st.error(e)
         return []
 
+@st.cache_data(show_spinner="Fetching data from triplestore ...")
+def query_execution_and_convert(sparql_endpoint, query_string):
+    logging.info("execute_query_convert_and_count on " + sparql_endpoint + ":" + query_string)
+    sparql.setQuery(query_string)
+    sparql.setReturnFormat(JSON)
+    results = sparql.query().convert()
+    return results["results"]["bindings"]
+    
 
-def execute_start_resource_query_convert_and_count(sparql, all_start_values, p_values, p_blocked_values, limit):
+
+def execute_start_resource_query_convert_and_count(sparql_endpoint, all_start_values, p_values, p_blocked_values, limit):
     size = 25
     start_values_chunks = [all_start_values[x:x+size] for x in range(0, len(all_start_values), size)]
     
@@ -175,33 +179,35 @@ def execute_start_resource_query_convert_and_count(sparql, all_start_values, p_v
             PREFIX dbo: <http://dbpedia.org/ontology/>
             
             SELECT ?s ?p ?o ?direction WHERE {
-                {
-                    ?s ?p ?o .
-                    # filter for start resources
-                    VALUES ?s { %s }
-                    BIND("outgoing" AS ?direction) # o should be used next
+                GRAPH ?g {
+                    {
+                        ?s ?p ?o .
+                        # filter for start resources
+                        VALUES ?s { %s }
+                        BIND("outgoing" AS ?direction) # o should be used next
+                    }
+                    UNION
+                    {
+                        ?s ?p ?o .
+                        # filter for start resources
+                        VALUES ?o { %s }
+                        BIND("ingoing" AS ?direction) # s should be used next
+                    }
+                    # define allowed types of p
+                    %s 
+                    
+                    # define blocked types of p
+                    %s
                 }
-                UNION
-                {
-                    ?s ?p ?o .
-                    # filter for start resources
-                    VALUES ?o { %s }
-                    BIND("ingoing" AS ?direction) # s should be used next
-                }
-                # define allowed types of p
-                %s 
-                
-                # define blocked types of p
-                %s
             } 
             # LIMIT applied later
-            # ORDER randomly
+            # order results randomly
             ORDER BY RAND()
         """ % (start_values_sparql, start_values_sparql, p_values, p_blocked_values)
         print("execute_start_resource_query_convert_and_count:", count, "/", len(start_values_chunks), query_string)
         
         all_queries += query_string
-        results_iteration = execute_query_convert_and_count(sparql, query_string)
+        results_iteration = execute_query_convert(sparql_endpoint, query_string)
         results += results_iteration
         
         # stop if we have enough results
@@ -213,8 +219,7 @@ def execute_start_resource_query_convert_and_count(sparql, all_start_values, p_v
     return results, all_queries
 
 
-@st.cache_data
-def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_properties, start_resources):
+def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_properties, start_resources, graph):
     
     p_values = " ".join(["<%s>" % x for x in allowed_properties])
     if len(allowed_properties) > 0:
@@ -225,6 +230,11 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
     # filter out blocked properties
     p_blocked_values = "\n".join(["FILTER(STR(?p) != \"%s\")" % x for x in blocked_properties])
     
+    if graph != None and len(graph) > 0:
+        graph_expression = "GRAPH <%s> " % (graph,)
+    else:
+        graph_expression = "GRAPH ?g "
+    
     # simple query to get all resources if no start resources are given
     if len(start_resources) == 0:
         query_string = """
@@ -233,28 +243,31 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
             PREFIX dbr: <http://dbpedia.org/resource/>
             PREFIX dbo: <http://dbpedia.org/ontology/>
             
-            SELECT ?s ?p ?o WHERE {
-                ?s ?p ?o .
-                # define allowed types of p
-                %s 
-                # define blocked types of p
-                %s
+            SELECT ?s ?p ?o 
+            WHERE {
+                %s {
+                    ?s ?p ?o .
+                    # define allowed types of p
+                    %s 
+                    # define blocked types of p
+                    %s
+                }
             } 
             LIMIT %d
-        """ % (p_values, p_blocked_values, number_of_results)
+        """ % (graph_expression, p_values, p_blocked_values, number_of_results)
         
         with st.spinner('Wait for it...'):
             with st.expander("SPARQL query (LIMIT %d)" % (number_of_results,), expanded=False):
                 st.code(query_string)
 
-        return execute_query_convert_and_count(sparql, query_string)
+        return execute_query_convert(sparql_endpoint, query_string)
 
     else: # start resources are given
         all_query_strings = "" # save all queries for showing it in the expander
         results = [] # save all results
         # iterate over resources until we have enough results
         while number_of_results > len(results):
-            results_iteration, query_string = execute_start_resource_query_convert_and_count(sparql, start_resources, p_values, p_blocked_values, number_of_results)
+            results_iteration, query_string = execute_start_resource_query_convert_and_count(sparql_endpoint, start_resources, p_values, p_blocked_values, number_of_results)
 
             all_query_strings += query_string
             new_start_resources = []
@@ -287,7 +300,6 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
         
 
 
-@st.cache_data
 def get_resources(sparql_endpoint, max):
         
         query_string = """
@@ -300,11 +312,10 @@ def get_resources(sparql_endpoint, max):
             }
             LIMIT %d
         """ % (max,)
-        results = execute_query_convert_and_count(sparql, query_string)
+        results = execute_query_convert(sparql_endpoint, query_string)
         return [x["s"]["value"] for x in results]
 
 
-@st.cache_data
 def get_all_properties(sparql_endpoint):
     
     cleaned_sparql_endpoint = sparql_endpoint.replace(":", "_").replace("/", "_").replace(".", "_")
@@ -332,13 +343,15 @@ def get_all_properties(sparql_endpoint):
             PREFIX owl: <http://www.w3.org/2002/07/owl#>
             
             SELECT DISTINCT ?property WHERE {
-                ?property rdf:type ?type .
-                VALUES ?type { rdf:Property owl:DatatypeProperty }
+                GRAPH ?g {
+                    ?property rdf:type ?type .
+                    VALUES ?type { rdf:Property owl:DatatypeProperty }
+                }
             } 
             LIMIT 10000
             OFFSET %d
         """ % (page * 10000,)
-        results = execute_query_convert_and_count(sparql, query_string)
+        results = execute_query_convert(sparql_endpoint, query_string)
         
         if len(results) == 0:
             break
@@ -358,11 +371,13 @@ def get_all_properties(sparql_endpoint):
             PREFIX yago: <http://dbpedia.org/class/yago/>
             
             SELECT DISTINCT ?property WHERE {
-                ?s ?property ?o .
+                GRAPH ?g {
+                    ?s ?property ?o .
+                }
             }
             LIMIT 10000
         """
-        results = execute_query_convert_and_count(sparql, query_string)
+        results = execute_query_convert(sparql_endpoint, query_string)
         
         for result in results:
             p = result["property"]["value"]
@@ -378,11 +393,15 @@ def get_all_properties(sparql_endpoint):
     return all_properties
 
 
-@st.cache_data
-def get_resource_data(sparql_endpoint, uri):
+def get_resource_data(sparql_endpoint, uri, graph):
     
     def replace_parenthesis(str):
         return str.replace("(", "\(").replace(")", "\)")
+    
+    if graph != None and len(graph) > 0:
+        graph_expession = "GRAPH <%s> " % (graph,)
+    else:
+        graph_expession = "GRAPH ?g "
     
     if sparql_endpoint == WIKIDATA_ENDPOINT:
         query_string = """
@@ -392,12 +411,14 @@ def get_resource_data(sparql_endpoint, uri):
             
             SELECT DISTINCT ?p ?p_label ?o
             WHERE {
-                <%s> ?p ?o .
-                FILTER(!isLiteral(?o) || lang(?o) = "" || langMatches(lang(?o), "EN"))
-                BIND(?p AS ?p_label)
+                %s {
+                    <%s> ?p ?o .
+                    FILTER(!isLiteral(?o) || lang(?o) = "" || langMatches(lang(?o), "EN"))
+                    BIND(?p AS ?p_label)
+                }
             }
             ORDER BY LCASE(?p_label)
-        """ % (uri,)
+        """ % (graph_expession, uri)
         
     else:
         query_string = """
@@ -407,24 +428,26 @@ def get_resource_data(sparql_endpoint, uri):
             
             SELECT DISTINCT ?p ?p_label ?o
             WHERE {
-                <%s> ?p ?o .
-                ?p rdfs:label ?p_label .
-                FILTER(!isLiteral(?p_label) || lang(?p_label) = "" || langMatches(lang(?p_label), "EN"))
-                #BIND (datatype(?o) AS ?dt)
-                FILTER(STR(?p) != "http://dbpedia.org/ontology/wikiPageWikiLink")
-                FILTER(STR(?p) != "http://dbpedia.org/property/wikiPageUsesTemplate")
-                FILTER(STR(?p) != "http://www.w3.org/2002/07/owl#sameAs")
-                FILTER(!isLiteral(?o) || lang(?o) = "" || langMatches(lang(?o), "EN"))
-                #BIND(STR(?o) AS ?o_v)
+                %s {
+                    <%s> ?p ?o .
+                    ?p rdfs:label ?p_label .
+                    FILTER(!isLiteral(?p_label) || lang(?p_label) = "" || langMatches(lang(?p_label), "EN"))
+                    #BIND (datatype(?o) AS ?dt)
+                    FILTER(STR(?p) != "http://dbpedia.org/ontology/wikiPageWikiLink")
+                    FILTER(STR(?p) != "http://dbpedia.org/property/wikiPageUsesTemplate")
+                    FILTER(STR(?p) != "http://www.w3.org/2002/07/owl#sameAs")
+                    FILTER(!isLiteral(?o) || lang(?o) = "" || langMatches(lang(?o), "EN"))
+                    #BIND(STR(?o) AS ?o_v)
+                }
             }
             ORDER BY LCASE(?p_label)
-        """ % (uri,)
+        """ % (graph_expession,uri)
     #print(query_string)
     
     with st.expander("SPARQL query for " + uri.replace("_", "&#95;").replace(":", "\:"), expanded=False):
         st.code(query_string)
     
-    results = execute_query_convert_and_count(sparql, query_string)    
+    results = execute_query_convert(sparql_endpoint, query_string)    
     return results
 
 
@@ -457,8 +480,8 @@ def get_dataframe_from_results(resource_data, indegree, outdegree):
     return df
 
 
-@st.cache_data
-def get_labels(results):
+@st.cache_data(show_spinner="Fetching resource labels from triplestore ...")
+def get_labels(sparql_endpoint, results):
     resources = []
     for result in results:
         s = result["s"]["value"]
@@ -477,31 +500,34 @@ def get_labels(results):
     resources_chunks = [resources[x:x+size] for x in range(0, len(resources), size)]
 
     results = []
+    all_query_strings = ""
     for resources_chunk in resources_chunks:
         try:
-            
+            # special SPARQL query for Wikidata due to label service
             if sparql_endpoint == WIKIDATA_ENDPOINT:
                 query_string = """ 
-                    # wikidata needs specific query for labels
+                    # wikidata needs a specific query for labels
                     SELECT ?s ?p (?sLabel AS ?o)
                     WHERE {
                         SELECT ?s ?p ?sLabel
                         WHERE 
                         {
-                            BIND(?res AS ?s)
-                            BIND(<http://www.w3.org/2000/01/rdf-schema#label> AS ?p)
-                            BIND(?sLabel AS ?o)
-                            
-                            VALUES ?res { %s }
-                            
-                            {
-                                SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } 
-                                #?prop wikibase:directClaim ?s .
+                            GRAPH ?g {
+                                BIND(?res AS ?s)
+                                BIND(<http://www.w3.org/2000/01/rdf-schema#label> AS ?p)
+                                BIND(?sLabel AS ?o)
+                                
+                                VALUES ?res { %s }
+                                
+                                {
+                                    SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } 
+                                    #?prop wikibase:directClaim ?s .
+                                }
                             }
                         }
                     }
                 """ % (" ".join(["<%s>" % x for x in resources_chunk]))
-            
+                
             else:
                 query_string = """
                     # get labels the standard way
@@ -510,18 +536,20 @@ def get_labels(results):
                     PREFIX dbo: <http://dbpedia.org/ontology/>
                     
                     SELECT ?s ?p ?o WHERE {
-                        ?s ?p ?o .
-                        VALUES ?s { %s }
-                        VALUES ?p { rdfs:label }
-                        FILTER ( LANG(?o) = "en" )
+                        GRAPH ?g {
+                            ?s ?p ?o .
+                            VALUES ?s { %s }
+                            VALUES ?p { rdfs:label }
+                            FILTER ( LANG(?o) = "en" )
+                        }
                     }
                 """ % (" ".join(["<%s>" % x for x in resources_chunk]))
-                #print("get labels:", query_string)
 
-            results += execute_query_convert_and_count(sparql, query_string)
+            results += execute_query_convert(sparql_endpoint, query_string)
+            all_query_strings += query_string
 
         except Exception as e:
-            st.error(st.code(query_string))
+            st.error(st.code(all_query_strings))
             st.error(e)
     
     return results, resources
@@ -537,7 +565,7 @@ def replace_url_by_prefixes(url):
 def get_node_size(str):
     node_size = get_node_degree(str) + 1
     # make it proportionally smaller, use log scale
-    return round(math.log(node_size * 5, 2))
+    return round(math.log(node_size * 20, 2))
 
 @st.cache_data
 def get_color(str):
@@ -570,8 +598,6 @@ def get_node_color(str, start_resources):
     i = min(round(node_degree / max_degree * (len(node_color_palette) - 1)), (len(node_color_palette) - 1))
     color = node_color_palette[i]
     
-    #print("node_degree: %d, max_degree: %d, i: %d, color: %s" % (node_degree, max_degree, i, color))
-    
     return color
 
 def get_max_node_degree():
@@ -594,7 +620,6 @@ def create_help_string_from_list(my_values):
 
 all_properties = get_all_properties(sparql_endpoint)
 
-import random
 all_properties_copy = all_properties.copy()
 random.shuffle(all_properties_copy)
 st.markdown("""
@@ -659,8 +684,8 @@ edgeMinimization = False
 solver = st.sidebar.selectbox("solver", ['barnesHut', 'repulsion', 'hierarchicalRepulsion', 'forceAtlas2Based'], index=2)
 
 
-data = get_data(sparql_endpoint, number_of_results=number_of_results, allowed_properties=whitelist_properties, blocked_properties=blacklist_properties, start_resources=start_resources)
-labels, resources = get_labels(data)
+data = get_data(sparql_endpoint, number_of_results=number_of_results, allowed_properties=whitelist_properties, blocked_properties=blacklist_properties, start_resources=start_resources, graph=specific_graph)
+labels, resources = get_labels(sparql_endpoint, data)
 indegree_map = {}
 outdegree_map = {}
 property_counter_map = {}
@@ -763,7 +788,7 @@ print(return_value)
 if return_value is not None:    
     try:    
         if validators.url(return_value):
-            resource_data = get_resource_data(sparql_endpoint, return_value)
+            resource_data = get_resource_data(sparql_endpoint, return_value, specific_graph)
         
             df = get_dataframe_from_results(resource_data, indegree=indegree_map.get(return_value,0), outdegree=outdegree_map.get(return_value,0))
             st.dataframe(df,
@@ -800,11 +825,4 @@ if (parent.window.document.getElementById("github-fork-ribbon") == null) {
     parent.window.document.body.appendChild(github_ribbon.firstChild);
 }
 </script>
-<style>
-.rti--container .rti--tag {
-    background-color: #FFF;
-    color: #000 !important;
-    border: 1px solid #000;
-}
-</style>
 """ % (GITHUB_REPO,))
