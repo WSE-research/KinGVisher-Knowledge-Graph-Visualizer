@@ -1,0 +1,8 @@
+{
+    "services": [{
+        "mode": "dockerfile",
+        "image": "wseresearch/knowledge-graph-visualizer",
+        "tag": "latest",
+        "port": "40112:8501"
+    }]
+}
