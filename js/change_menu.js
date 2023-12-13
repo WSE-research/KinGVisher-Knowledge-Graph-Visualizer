@@ -94,10 +94,14 @@ waitForElm('#MainMenu').then((elm) => {
     for (let i = 0; i < iframes.length; i++) {
         let iframe = iframes[i];
         let style = parent.window.document.createElement("style");
-        style.innerHTML = styles[i].inner_style;
-        iframe.contentDocument.head.appendChild(style);
-        console.log("added style tag to iframe " + i);
-        iframe.style = styles[i].outer_style;
+        if (styles[i] == undefined) {
+            continue;
+        } else {
+            style.innerHTML = styles[i].inner_style;
+            iframe.contentDocument.head.appendChild(style);
+            console.log("added style tag to iframe " + i);
+            iframe.style = styles[i].outer_style;
+        }
     }
 
 });

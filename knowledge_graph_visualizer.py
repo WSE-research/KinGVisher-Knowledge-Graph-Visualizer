@@ -38,6 +38,7 @@ DEFAULT_OUTPUT_WIDTH = 1024
 BASIC_NODE_SIZE = 5
 SLEEP_TIME = 0.1
 START_RESOURCE_COLOR = "#0000FF"
+LOCAL_CACHE_FOLDER = "local_cache/"
 
 DBPEDIA_ENDPOINT = "http://dbpedia.org/sparql"
 WIKIDATA_ENDPOINT = "https://query.wikidata.org/sparql"
@@ -85,21 +86,13 @@ logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 
 
-REPLACE_INDEX_HTML_CONTENT = True
 replace_values_in_index_html(st, REPLACE_INDEX_HTML_CONTENT, 
                              new_title=PAGE_TITLE, 
                              new_meta_description=META_DESCRIPTION, 
                              new_noscript_content=DESCRIPTION, 
                              canonical_url=CANONICAL_URL, 
                              page_icon_with_path=PAGE_ICON,
-                             additional_html_head_content=ADDITIONAL_HTML_HEAD_CONTENT + """
-<style>
-        span.rti--tag {
-            color: #fff !important;
-            background-color: #000 !important;
-        }
-</style>
-"""
+                             additional_html_head_content=ADDITIONAL_HTML_HEAD_CONTENT
                             )
 st.set_page_config(layout="wide", initial_sidebar_state="expanded",
                    page_title=PAGE_TITLE,
@@ -159,8 +152,14 @@ def query_execution_and_convert(sparql_endpoint, query_string):
     return results["results"]["bindings"]
     
 
+def get_graph_expression(graph):
+    if graph != None and len(graph) > 0:
+        return "GRAPH <%s> " % (graph,)
+    else:
+        return "GRAPH ?g "
 
-def execute_start_resource_query_convert_and_count(sparql_endpoint, all_start_values, p_values, p_blocked_values, limit):
+
+def execute_start_resource_query_convert_and_count(sparql_endpoint, graph, all_start_values, p_values, p_blocked_values, limit):
     size = 25
     start_values_chunks = [all_start_values[x:x+size] for x in range(0, len(all_start_values), size)]
     
@@ -179,7 +178,7 @@ def execute_start_resource_query_convert_and_count(sparql_endpoint, all_start_va
             PREFIX dbo: <http://dbpedia.org/ontology/>
             
             SELECT ?s ?p ?o ?direction WHERE {
-                GRAPH ?g {
+                %s {
                     {
                         ?s ?p ?o .
                         # filter for start resources
@@ -203,7 +202,7 @@ def execute_start_resource_query_convert_and_count(sparql_endpoint, all_start_va
             # LIMIT applied later
             # order results randomly
             ORDER BY RAND()
-        """ % (start_values_sparql, start_values_sparql, p_values, p_blocked_values)
+        """ % (get_graph_expression(graph), start_values_sparql, start_values_sparql, p_values, p_blocked_values)
         print("execute_start_resource_query_convert_and_count:", count, "/", len(start_values_chunks), query_string)
         
         all_queries += query_string
@@ -230,11 +229,6 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
     # filter out blocked properties
     p_blocked_values = "\n".join(["FILTER(STR(?p) != \"%s\")" % x for x in blocked_properties])
     
-    if graph != None and len(graph) > 0:
-        graph_expression = "GRAPH <%s> " % (graph,)
-    else:
-        graph_expression = "GRAPH ?g "
-    
     # simple query to get all resources if no start resources are given
     if len(start_resources) == 0:
         query_string = """
@@ -254,7 +248,7 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
                 }
             } 
             LIMIT %d
-        """ % (graph_expression, p_values, p_blocked_values, number_of_results)
+        """ % (get_graph_expression(graph), p_values, p_blocked_values, number_of_results)
         
         with st.spinner('Wait for it...'):
             with st.expander("SPARQL query (LIMIT %d)" % (number_of_results,), expanded=False):
@@ -267,7 +261,7 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
         results = [] # save all results
         # iterate over resources until we have enough results
         while number_of_results > len(results):
-            results_iteration, query_string = execute_start_resource_query_convert_and_count(sparql_endpoint, start_resources, p_values, p_blocked_values, number_of_results)
+            results_iteration, query_string = execute_start_resource_query_convert_and_count(sparql_endpoint, specific_graph, start_resources, p_values, p_blocked_values, number_of_results)
 
             all_query_strings += query_string
             new_start_resources = []
@@ -316,10 +310,10 @@ def get_resources(sparql_endpoint, max):
         return [x["s"]["value"] for x in results]
 
 
-def get_all_properties(sparql_endpoint):
+def get_all_properties(sparql_endpoint, graph=None):
     
     cleaned_sparql_endpoint = sparql_endpoint.replace(":", "_").replace("/", "_").replace(".", "_")
-    cache_filename= "all_properties_" + cleaned_sparql_endpoint + ".json"
+    cache_filename= LOCAL_CACHE_FOLDER + "/all_properties_" + cleaned_sparql_endpoint + "_" + str(graph) + ".json"
     
     print("checking for cache file: " + cache_filename + " ...")
     if os.path.exists(cache_filename):    
@@ -333,6 +327,8 @@ def get_all_properties(sparql_endpoint):
     page = 0
     all_properties = []
     
+    graph_expression = get_graph_expression(graph)
+    
     while True:
         # will not work with more with properties that are not defined in the ontology, like rdf:type
         query_string = """
@@ -343,14 +339,14 @@ def get_all_properties(sparql_endpoint):
             PREFIX owl: <http://www.w3.org/2002/07/owl#>
             
             SELECT DISTINCT ?property WHERE {
-                GRAPH ?g {
+                %s {
                     ?property rdf:type ?type .
                     VALUES ?type { rdf:Property owl:DatatypeProperty }
                 }
             } 
             LIMIT 10000
             OFFSET %d
-        """ % (page * 10000,)
+        """ % (graph_expression, page * 10000,)
         results = execute_query_convert(sparql_endpoint, query_string)
         
         if len(results) == 0:
@@ -481,7 +477,7 @@ def get_dataframe_from_results(resource_data, indegree, outdegree):
 
 
 @st.cache_data(show_spinner="Fetching resource labels from triplestore ...")
-def get_labels(sparql_endpoint, results):
+def get_labels(sparql_endpoint, results, show_resource_labels):
     resources = []
     for result in results:
         s = result["s"]["value"]
@@ -495,6 +491,9 @@ def get_labels(sparql_endpoint, results):
         #if p not in resources:
         #    resources.append(p)
 
+    # if no labels should be shown, return empty list for the labels
+    if show_resource_labels is False:
+        return [], resources
 
     size = 25
     resources_chunks = [resources[x:x+size] for x in range(0, len(resources), size)]
@@ -585,10 +584,15 @@ def get_color(str):
 
 node_color_palette = sns.color_palette(palette='RdYlGn').as_hex()
 
-def get_node_color(str, start_resources):
+@st.cache_data
+def get_node_color(str, start_resources, p=None):
     
     if str in start_resources:
         return START_RESOURCE_COLOR
+    
+    # grey color of all labels
+    if p != None and p in ["http://www.w3.org/2000/01/rdf-schema#label", "http://www.w3.org/2004/02/skos/core#prefLabel", "http://www.w3.org/2004/02/skos/core#altLabel"]:
+        return "#CCCCCC"
     
     if str == "none":
         return "#000000"
@@ -618,7 +622,7 @@ def create_help_string_from_list(my_values):
     random.shuffle(my_values_copy)
     return "Examples: \n* `" + "`\n* `".join(my_values_copy[:25]) + "`"
 
-all_properties = get_all_properties(sparql_endpoint)
+all_properties = get_all_properties(sparql_endpoint, graph=specific_graph)
 
 all_properties_copy = all_properties.copy()
 random.shuffle(all_properties_copy)
@@ -672,20 +676,27 @@ start_resources = st_tags(
 number_of_results = st.sidebar.slider("number of edges",min_value=10, max_value=1000, value=10, step=10)
 if number_of_results >= 300:
     st.sidebar.info("Please be patient, this might take a while depending on your browser's computing power.")
-layout = st.sidebar.selectbox('layout',['dot','neato','circo','fdp','sfdp'], index=0)
-rankdir = st.sidebar.selectbox("rankdir", ['BT', 'TB', 'LR', 'RL'], index=2)
-ranksep = st.sidebar.slider("ranksep",min_value=0, max_value=20, value=10)
-nodesep = st.sidebar.slider("nodesep",min_value=0, max_value=20, value=5)
-nodeSpacing = st.sidebar.slider("nodeSpacing",min_value=50, max_value=500, value=200, step=50)
-stabilization = True
+shape = st.sidebar.selectbox('shape',['box','ellipse','text','dot','square','star','triangle','triangleDown'], index=0) # ,'circle','database','image','circularImage','diamond','hexagon'
+show_resource_labels = st.sidebar.checkbox("show resource labels", value=True)
+node_font_size = st.sidebar.slider("node font size",min_value=1, max_value=20, value=8)
+edge_font_size = st.sidebar.slider("edge font size",min_value=1, max_value=20, value=8)
+layout = "" # st.sidebar.selectbox('layout',['dot','neato','circo','fdp','sfdp'], index=0)
+rankdir = "" # st.sidebar.selectbox("rankdir", ['BT', 'TB', 'LR', 'RL'], index=2)
+ranksep = "" # st.sidebar.slider("ranksep",min_value=0, max_value=20, value=10)
+nodesep = "" # st.sidebar.slider("nodesep",min_value=0, max_value=20, value=5)
+nodeSpacing = "" # st.sidebar.slider("nodeSpacing",min_value=50, max_value=500, value=200, step=50)
+springLength = st.sidebar.slider("edge length",min_value=0, max_value=500, value=150)
+# stabilization = True
 fit = True
 edgeMinimization = False
-#spring_length = st.sidebar.slider("springLength",min_value=0, max_value=500)
-solver = st.sidebar.selectbox("solver", ['barnesHut', 'repulsion', 'hierarchicalRepulsion', 'forceAtlas2Based'], index=2)
+# solver = st.sidebar.selectbox("solver", ['barnesHut', 'repulsion', 'hierarchicalRepulsion', 'forceAtlas2Based'], index=2)
 
+hierarchical = st.sidebar.checkbox("hierarchical layout", value=False)
+
+show_visualization_options_in_rendered_network = st.sidebar.checkbox("Show visualization options in rendered network", value=False)
 
 data = get_data(sparql_endpoint, number_of_results=number_of_results, allowed_properties=whitelist_properties, blocked_properties=blacklist_properties, start_resources=start_resources, graph=specific_graph)
-labels, resources = get_labels(sparql_endpoint, data)
+labels, resources = get_labels(sparql_endpoint, data, show_resource_labels)
 indegree_map = {}
 outdegree_map = {}
 property_counter_map = {}
@@ -716,11 +727,12 @@ with st.expander("Number of **nodes: %d**, number of **properties: %d**" % (len(
 
 
 
+
 for result in data + labels:
     # https://github.com/ChrisDelClea/streamlit-agraph/blob/master/streamlit_agraph/node.py#L18
     
     s = result["s"]["value"]
-    s_shape = "dot"
+    s_shape = shape
     if "s_type" in result:
         s_type = replace_url_by_prefixes(result["s_type"]["value"])
     else:
@@ -734,7 +746,7 @@ for result in data + labels:
     else:
         o_label = o[:64] # cut down to 64 characters
 
-    o_shape = "dot"    
+    o_shape = shape
     if "o_type" in result:
         o_type = replace_url_by_prefixes(result["o_type"]["value"])
     else:
@@ -745,11 +757,17 @@ for result in data + labels:
     if s in start_resources:
         s_shape = "square"
     
+    if p in ["http://www.w3.org/2000/01/rdf-schema#label", "http://www.w3.org/2004/02/skos/core#prefLabel", "http://www.w3.org/2004/02/skos/core#altLabel"]:
+        length = round(0.66 * springLength)
+    else:
+        length = springLength
+    
+    
     if s not in [x.id for x in nodes]:
         nodes.append( Node(id=s, label=replace_url_by_prefixes(s), size=get_node_size(s), color=get_node_color(s, start_resources), shape=s_shape) )
     if o not in [x.id for x in nodes]:
-        nodes.append( Node(id=o, label=o_label, size=get_node_size(o), color=get_node_color(o, start_resources), shape=o_shape ) )
-    edges.append( Edge(source=s, label=replace_url_by_prefixes(p), target=o, color=get_color(p), arrows_to=True, arrows_from=False, type="CURVE_SMOOTH") )
+        nodes.append( Node(id=o, label=o_label, size=get_node_size(o), color=get_node_color(o, start_resources, p), shape=o_shape ) )
+    edges.append( Edge(source=s, label=replace_url_by_prefixes(p), target=o, color=get_color(p), length=length, arrows_to=True, arrows_from=False, type="CURVE_SMOOTH") )
 
 
 
@@ -757,33 +775,88 @@ for result in data + labels:
 # https://github.com/ChrisDelClea/streamlit-agraph/blob/master/streamlit_agraph/config.py
 config = Config(width="100%",
                 height=800,
+                autoResize=True,
+                groups={}, # dict of node groups (refer to https://visjs.github.io/vis-network/docs/network/)
                 directed=True, 
-                physics=True,
-                solver=solver,
-                graphviz_layout=layout,
-                graphviz_config={
-                    "rankdir": rankdir, 
-                    "ranksep": ranksep, 
-                    "nodesep": nodesep
+                configure={
+                    "enabled": show_visualization_options_in_rendered_network,
+                    "showButton": True, 
+                    "filter": True 
                 },
-                stabilization=stabilization,
-                fit=fit,
-                edgeMinimization=edgeMinimization,
-                nodeSpacing=nodeSpacing,
-                node={'labelProperty':'label'},
-                hierarchical=False,
-                collapsible=True,
+                edges={ 
+                    "font": {
+                        "size": edge_font_size,
+                        "strokeWidth": 1
+                    },      
+                },
+                nodes={
+                    "font": {
+                        "size": node_font_size,
+                    }
+                },                
                 layout={
-                    "improvedLayout": True,
-                }
+                    "hierarchical": {
+                        "enabled": hierarchical,
+                        "shakeTowards": "roots"
+                    }
+                },                
+                # physics={
+                #     "enabled": {
+                #         "solver": solver,
+                #         "barnesHut": {
+                #             "centralGravity": 0.0,
+                #             "springLength": springLength,
+                #             "springConstant": 0.01,
+                #             "damping": 0.09,
+                #             "avoidOverlap": 0.0
+                #         },
+                #         "repulsion": {
+                #             "centralGravity": 0.0,
+                #             "springLength": springLength,
+                #             "springConstant": 0.01,
+                #             "nodeDistance": 100,
+                #             "damping": 0.09
+                #         },
+                #         "hierarchicalRepulsion": {
+                #             "centralGravity": 0.0,
+                #             "springLength": springLength,
+                #             "springConstant": 0.01,
+                #             "nodeDistance": 100,
+                #             "damping": 0.09
+                #         },
+                #         "forceAtlas2Based": {
+                #             "gravitationalConstant": -50,
+                #             "centralGravity": 0.01,
+                #             "springLength": springLength,
+                #             "springConstant": 0.08,
+                #             "damping": 0.4,
+                #             "avoidOverlap": 0.0
+                #         },
+                #         "maxVelocity": 100,
+                #         "minVelocity": 1
+                #     }
+                # },
+                #     "stabilization": stabilization
+                #},
+                # graphviz_layout=layout,
+                # graphviz_config={
+                #     "rankdir": rankdir, 
+                #     "ranksep": ranksep, 
+                #     "nodesep": nodesep
+                # },
+                #stabilization=stabilization,
+                #fit=fit,
+                #edgeMinimization=edgeMinimization,
+                #nodeSpacing=nodeSpacing,
+                #node={'labelProperty':'label'},
+                #hierarchical=False,
+                #collapsible=True,
                 # **kwargs
                 )
 
 return_value = agraph(nodes=nodes, edges=edges, config=config)
 
 #st.sidebar.markdown("### Number of executed query for the current visualization: %d" % (number_of_requests,))
-
-print(return_value)
 
 if return_value is not None:    
     try:    
