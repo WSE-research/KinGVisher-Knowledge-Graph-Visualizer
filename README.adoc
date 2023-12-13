@@ -8,10 +8,10 @@ ifdef::env-github[]
 :important-caption: :heavy_exclamation_mark:
 :caution-caption: :fire:
 :warning-caption: :warning:
-:github-repository: https://github.com/WSE-research/Knowlege-Graph-Visualizer
+:github-repository: https://github.com/WSE-research/Knowledge-Graph-Visualizer
 endif::[]
 
-= Knowlege Graph Visualizer
+= Knowledge Graph Visualizer
 
 ---
 
@@ -20,6 +20,9 @@ toc::[]
 ---
 
 
+```shell
+python3 -m streamlit run knowledge_graph_visualizer.py
+````
 
 == Contribute
 
