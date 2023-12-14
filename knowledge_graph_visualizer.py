@@ -581,24 +581,31 @@ def get_color(str):
     else:
         return "#666666"    
 
+@st.cache_data
+def get_node_color_palette(number_of_colors=40):
+    # https://seaborn.pydata.org/tutorial/color_palettes.html#sequential-color-brewer-palettes
+    node_color_palette = sns.color_palette("Blues", 40).as_hex() 
+    # remove dark colors
+    return node_color_palette[:round(len(node_color_palette) / 2)]
+    
 
-node_color_palette = sns.color_palette(palette='RdYlGn').as_hex()
 
 @st.cache_data
-def get_node_color(str, start_resources, p=None):
+def get_node_color(node_id, start_resources, p=None):
     
-    if str in start_resources:
+    if node_id in start_resources:
         return START_RESOURCE_COLOR
     
     # grey color of all labels
     if p != None and p in ["http://www.w3.org/2000/01/rdf-schema#label", "http://www.w3.org/2004/02/skos/core#prefLabel", "http://www.w3.org/2004/02/skos/core#altLabel"]:
         return "#CCCCCC"
     
-    if str == "none":
+    if node_id == "none":
         return "#000000"
-    node_degree = get_node_degree(str)
+    node_degree = get_node_degree(node_id)
     max_degree = get_max_node_degree()
     
+    global node_color_palette # TODO: move to class property
     i = min(round(node_degree / max_degree * (len(node_color_palette) - 1)), (len(node_color_palette) - 1))
     color = node_color_palette[i]
     
@@ -621,6 +628,8 @@ def create_help_string_from_list(my_values):
     my_values_copy = my_values.copy()
     random.shuffle(my_values_copy)
     return "Examples: \n* `" + "`\n* `".join(my_values_copy[:25]) + "`"
+
+node_color_palette = get_node_color_palette()
 
 all_properties = get_all_properties(sparql_endpoint, graph=specific_graph)
 
