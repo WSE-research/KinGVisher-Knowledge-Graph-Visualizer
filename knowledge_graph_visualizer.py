@@ -158,7 +158,7 @@ def execute_query_convert(sparql_endpoint, query_string):
         st.error(e)
         return []
 
-@st.cache_data(show_spinner="Fetching data from triplestore ...")
+@st.cache_data(show_spinner="Fetching data from triplestore ...", ttl="7d")
 def query_execution_and_convert(sparql_endpoint, query_string):
     logging.info("execute_query_convert_and_count on " + sparql_endpoint + ":" + query_string)
     sparql.setQuery(query_string)
@@ -794,6 +794,13 @@ edgeMinimization = False
 hierarchical = st.sidebar.checkbox("hierarchical layout", value=False)
 
 show_visualization_options_in_rendered_network = st.sidebar.checkbox("Show visualization options in rendered network", value=False)
+
+st.sidebar.markdown("----")
+st.sidebar.info("The app will cache the SPARQL query results for 7 days to not waste resources of the used SPARQL endpoint.")
+if st.sidebar.button("Clear all cached entries"):
+    # Clear values from *all* all in-memory and on-disk data caches:
+    # i.e. clear values from both square and cube
+    st.cache_data.clear()
 
 data = get_data(
     sparql_endpoint, 
