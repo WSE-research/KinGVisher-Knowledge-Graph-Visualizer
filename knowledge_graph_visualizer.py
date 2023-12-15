@@ -38,6 +38,8 @@ DEFAULT_OUTPUT_WIDTH = 1024
 BASIC_NODE_SIZE = 5
 SLEEP_TIME = 0.1
 START_RESOURCE_COLOR = "#0000FF"
+NODE_COLOR_LITERAL = "#FFFF99"
+NODE_COLOR_LABEL = "#CCFFCC"
 LOCAL_CACHE_FOLDER = "local_cache/"
 
 INGOING_EDGES_ONLY = "⭘ ⭢ ⬛: only ingoing edges to the start resources"
@@ -649,7 +651,7 @@ def get_node_color_palette(number_of_colors=40):
     # https://seaborn.pydata.org/tutorial/color_palettes.html#sequential-color-brewer-palettes
     node_color_palette = sns.color_palette("Blues", 40).as_hex() 
     # remove dark colors
-    return node_color_palette[:round(len(node_color_palette))]
+    return node_color_palette[:round(0.66 * len(node_color_palette))]
     
 
 
@@ -661,18 +663,22 @@ def get_node_color(node_id, start_resources, p=None):
     
     # grey color of all labels
     if p != None and p in ["http://www.w3.org/2000/01/rdf-schema#label", "http://www.w3.org/2004/02/skos/core#prefLabel", "http://www.w3.org/2004/02/skos/core#altLabel"]:
-        return "#CCCCCC"
+        return NODE_COLOR_LABEL
     
     if node_id == "none":
         return "#000000"
-    node_degree = get_node_degree(node_id)
-    max_degree = get_max_node_degree()
     
-    global node_color_palette # TODO: move to class property
-    i = min(round(node_degree / max_degree * (len(node_color_palette) - 1)), (len(node_color_palette) - 1))
-    color = node_color_palette[i]
-    
-    return color
+    if validators.url(node_id) == True:
+        node_degree = get_node_degree(node_id)
+        max_degree = get_max_node_degree()
+        
+        global node_color_palette # TODO: move to class property
+        i = min(round(node_degree / max_degree * (len(node_color_palette) - 1)), (len(node_color_palette) - 1))
+        color = node_color_palette[i]
+        return color
+    else: # literal
+        return NODE_COLOR_LITERAL
+
 
 def get_font_values(s, start_resources, p):
     if s in start_resources:
@@ -761,7 +767,7 @@ start_resources = st_tags(
 # only if start resources are available, we can decide to use ingoing and outgoing edges or not
 if len(start_resources) > 0:
     use_edges_options = [INGOING_AND_OUTGOING_EDGES, INGOING_EDGES_ONLY, OUTGOING_EDGES_ONLY]
-    use_edges = st.selectbox("🜄 Filter type of edges: ", use_edges_options, index=0)
+    use_edges = st.selectbox("Filter type of edges: ", use_edges_options, index=0)
 else:
     use_edges = INGOING_AND_OUTGOING_EDGES
 
