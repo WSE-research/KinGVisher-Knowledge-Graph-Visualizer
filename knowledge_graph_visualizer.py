@@ -40,6 +40,11 @@ SLEEP_TIME = 0.1
 START_RESOURCE_COLOR = "#0000FF"
 LOCAL_CACHE_FOLDER = "local_cache/"
 
+INGOING_EDGES_ONLY = "⭘ ⭢ ⬛: only ingoing edges to the start resources"
+OUTGOING_EDGES_ONLY = "⭘ ⭠ ⬛: only outgoing edges from the start resources"
+INGOING_AND_OUTGOING_EDGES = "⭘ ⮂ ⬛: include ingoing and outgoing edges"
+
+
 DBPEDIA_ENDPOINT = "http://dbpedia.org/sparql"
 WIKIDATA_ENDPOINT = "https://query.wikidata.org/sparql"
 
@@ -71,6 +76,13 @@ PREFIXES = {
     "bd": "http://www.bigdata.com/rdf#",
     "oa": "http://www.w3.org/ns/openannotation/core/",
     "qa": "http://www.wdaqua.eu/qa#",
+    "gold:hypernym": "http://purl.org/linguistics/gold/hypernym",
+    "madsrdf": "http://loc.hi.hi.gov/hihi/",
+    "bflc": "http://id.loc.gov/ontologies/bflc/",
+    "ex": "http://example.org/",
+    "gr": "http://purl.org/goodrelations/v1#",
+    "spacerel": "http://data.ordnancesurvey.co.uk/ontology/spatialrelations/",
+    "qb": "http://purl.org/linked-data/cube#"
 }
 
 width = 60
@@ -81,6 +93,7 @@ nodes = []
 edges = []
 palette = sns.color_palette().as_hex()
 color_map = {}
+blacklist_properties = []
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
@@ -159,17 +172,53 @@ def get_graph_expression(graph):
         return "GRAPH ?g "
 
 
-def execute_start_resource_query_convert_and_count(sparql_endpoint, graph, all_start_values, p_values, p_blocked_values, limit):
+def execute_start_resource_query_convert(sparql_endpoint, graph, all_start_values, p_values, p_blocked_values, limit, use_edges):
+    
+    
     size = 25
     start_values_chunks = [all_start_values[x:x+size] for x in range(0, len(all_start_values), size)]
     
-    print("execute_start_resource_query_convert_and_count:" + str(len(all_start_values)) )
+    print("execute_start_resource_query_convert:" + str(len(all_start_values)) )
     pprint(start_values_chunks, width=160)
+    
+    if use_edges is INGOING_EDGES_ONLY or use_edges is INGOING_AND_OUTGOING_EDGES or use_edges is OUTGOING_EDGES_ONLY:
+        pass # ok
+    else:
+        st.error("use_edges is not valid: " + str(use_edges))
     
     results = []
     all_queries = ""
     for start_values,count in zip(start_values_chunks, range(len(start_values_chunks))):
+        
         start_values_sparql = " ".join(["<%s>" % x for x in start_values])
+        
+        if use_edges is INGOING_EDGES_ONLY or use_edges is INGOING_AND_OUTGOING_EDGES:
+            query_string_ingoing = """
+                    {   # ingoing
+                        ?s ?p ?o .
+                        # filter for start resources
+                        VALUES ?o { %s }
+                        BIND("ingoing" AS ?direction) # s should be used next
+                    }
+            """ % (start_values_sparql,)
+        else:
+            query_string_ingoing = ""
+        
+        if use_edges is OUTGOING_EDGES_ONLY or use_edges is INGOING_AND_OUTGOING_EDGES:
+            query_string_outgoing = """
+                    {   # outgoing
+                        ?s ?p ?o .
+                        # filter for start resources
+                        VALUES ?s { %s }
+                        BIND("outgoing" AS ?direction) # o should be used next
+                    }
+            """ % (start_values_sparql,)
+        else:
+            query_string_outgoing = ""
+            
+        if use_edges is INGOING_AND_OUTGOING_EDGES:
+            query_string_ingoing += "\t\t\t\tUNION"
+        
         # select all ingoing and outgoing resources of the start resources
         query_string = """
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -179,19 +228,9 @@ def execute_start_resource_query_convert_and_count(sparql_endpoint, graph, all_s
             
             SELECT ?s ?p ?o ?direction WHERE {
                 %s {
-                    {
-                        ?s ?p ?o .
-                        # filter for start resources
-                        VALUES ?s { %s }
-                        BIND("outgoing" AS ?direction) # o should be used next
-                    }
-                    UNION
-                    {
-                        ?s ?p ?o .
-                        # filter for start resources
-                        VALUES ?o { %s }
-                        BIND("ingoing" AS ?direction) # s should be used next
-                    }
+                        %s
+                        %s
+                    
                     # define allowed types of p
                     %s 
                     
@@ -202,8 +241,8 @@ def execute_start_resource_query_convert_and_count(sparql_endpoint, graph, all_s
             # LIMIT applied later
             # order results randomly
             ORDER BY RAND()
-        """ % (get_graph_expression(graph), start_values_sparql, start_values_sparql, p_values, p_blocked_values)
-        print("execute_start_resource_query_convert_and_count:", count, "/", len(start_values_chunks), query_string)
+        """ % (get_graph_expression(graph), query_string_ingoing, query_string_outgoing, p_values, p_blocked_values)
+        print("execute_start_resource_query_convert:", count, "/", len(start_values_chunks), query_string)
         
         all_queries += query_string
         results_iteration = execute_query_convert(sparql_endpoint, query_string)
@@ -218,7 +257,9 @@ def execute_start_resource_query_convert_and_count(sparql_endpoint, graph, all_s
     return results, all_queries
 
 
-def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_properties, start_resources, graph):
+def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_properties, start_resources, graph, use_edges):
+    
+    original_start_resources = start_resources.copy()
     
     p_values = " ".join(["<%s>" % x for x in allowed_properties])
     if len(allowed_properties) > 0:
@@ -261,23 +302,45 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
         results = [] # save all results
         # iterate over resources until we have enough results
         while number_of_results > len(results):
-            results_iteration, query_string = execute_start_resource_query_convert_and_count(sparql_endpoint, specific_graph, start_resources, p_values, p_blocked_values, number_of_results)
+            results_iteration, query_string = execute_start_resource_query_convert(
+                sparql_endpoint, 
+                specific_graph, 
+                start_resources, 
+                p_values, 
+                p_blocked_values, 
+                number_of_results,
+                use_edges=use_edges
+            )
 
             all_query_strings += query_string
             new_start_resources = []
             
             # collect all ingoing and outgoing resources of the start resources
-            for result in results_iteration:
-                s = result["s"]["value"]
-                o = result["o"]["value"]
-                direction = result["direction"]["value"]
-                if s not in start_resources and s not in new_start_resources and s not in start_resources and validators.url(s) and direction == "ingoing":
-                    new_start_resources.append(s)
-                if o not in start_resources and o not in new_start_resources and o not in start_resources and validators.url(o) and direction == "outgoing":
-                    new_start_resources.append(o) 
+            try:
+                for result in results_iteration:
+                    s = result["s"]["value"]
+                    o = result["o"]["value"]
+                    direction = result["direction"]["value"]
+                    if s not in start_resources and s not in new_start_resources and s not in start_resources and validators.url(s) and direction == "ingoing":
+                        new_start_resources.append(s)
+                    if o not in start_resources and o not in new_start_resources and o not in start_resources and validators.url(o) and direction == "outgoing":
+                        new_start_resources.append(o) 
+            except Exception as e:
+                st.error(st.code(all_query_strings))
+                st.error(e)
+                logging.error(all_query_strings)
+                logging.error(e)
+                new_start_resources = []
                     
             print("STEP: old_start_resources:", len(start_resources), "results_iteration:", len(results_iteration), "results:", len(results))
-            start_resources = new_start_resources.copy()
+            
+            # while considering ingoing and outgoing edges, we want to ensure to expand
+            if use_edges is INGOING_AND_OUTGOING_EDGES:
+                start_resources = new_start_resources.copy()
+            else: # otherwise we want to keep the original start resources to ensure we also expand more from the original start resources
+                # be aware: this might lead to a situation, where we expand slower or even don't find the possible expansion due to the dominating original start resources
+                start_resources =  start_resources.copy() + original_start_resources.copy()
+            
             results += results_iteration
             print("STEP: new_start_resources:", len(new_start_resources), "results_iteration:", len(results_iteration), "results:", len(results))
             
@@ -586,7 +649,7 @@ def get_node_color_palette(number_of_colors=40):
     # https://seaborn.pydata.org/tutorial/color_palettes.html#sequential-color-brewer-palettes
     node_color_palette = sns.color_palette("Blues", 40).as_hex() 
     # remove dark colors
-    return node_color_palette[:round(len(node_color_palette) / 2)]
+    return node_color_palette[:round(len(node_color_palette))]
     
 
 
@@ -610,6 +673,19 @@ def get_node_color(node_id, start_resources, p=None):
     color = node_color_palette[i]
     
     return color
+
+def get_font_values(s, start_resources, p):
+    if s in start_resources:
+        return {
+            "color": "#FFFFFF",
+            "size": node_font_size + 2
+        }
+    elif p != None and p in ["http://www.w3.org/2000/01/rdf-schema#label", "http://www.w3.org/2004/02/skos/core#prefLabel", "http://www.w3.org/2004/02/skos/core#altLabel"]:
+        return {
+            "color": "#000000"
+        }
+    else:
+        return {} # use default values
 
 def get_max_node_degree():
     return max(max(indegree_map.values()), max(outdegree_map.values()))
@@ -658,6 +734,7 @@ blacklist_properties = st_tags(
     text='Type here',
     suggestions=all_properties,
     maxtags=-1,
+    value=blacklist_properties
 )
 
 
@@ -665,7 +742,7 @@ blacklist_properties = st_tags(
 
 
 known_available_resources = get_resources(sparql_endpoint, max=10000)
-if known_available_resources == 10000:
+if len(known_available_resources) == 10000:
     known_available_resources_text = "more than 10000"
 else:
     known_available_resources_text = str(len(known_available_resources))
@@ -681,10 +758,18 @@ start_resources = st_tags(
     maxtags=-1    
 )
 
+# only if start resources are available, we can decide to use ingoing and outgoing edges or not
+if len(start_resources) > 0:
+    use_edges_options = [INGOING_AND_OUTGOING_EDGES, INGOING_EDGES_ONLY, OUTGOING_EDGES_ONLY]
+    use_edges = st.selectbox("🜄 Filter type of edges: ", use_edges_options, index=0)
+else:
+    use_edges = INGOING_AND_OUTGOING_EDGES
+
 
 number_of_results = st.sidebar.slider("number of edges",min_value=10, max_value=1000, value=10, step=10)
 if number_of_results >= 300:
     st.sidebar.info("Please be patient, this might take a while depending on your browser's computing power.")
+    
 shape = st.sidebar.selectbox('shape',['box','ellipse','text','dot','square','star','triangle','triangleDown'], index=0) # ,'circle','database','image','circularImage','diamond','hexagon'
 show_resource_labels = st.sidebar.checkbox("show resource labels", value=True)
 node_font_size = st.sidebar.slider("node font size",min_value=1, max_value=20, value=8)
@@ -704,7 +789,15 @@ hierarchical = st.sidebar.checkbox("hierarchical layout", value=False)
 
 show_visualization_options_in_rendered_network = st.sidebar.checkbox("Show visualization options in rendered network", value=False)
 
-data = get_data(sparql_endpoint, number_of_results=number_of_results, allowed_properties=whitelist_properties, blocked_properties=blacklist_properties, start_resources=start_resources, graph=specific_graph)
+data = get_data(
+    sparql_endpoint, 
+    number_of_results=number_of_results, 
+    allowed_properties=whitelist_properties, 
+    blocked_properties=blacklist_properties, 
+    start_resources=start_resources, 
+    graph=specific_graph,
+    use_edges=use_edges
+)
 labels, resources = get_labels(sparql_endpoint, data, show_resource_labels)
 indegree_map = {}
 outdegree_map = {}
@@ -728,13 +821,19 @@ for result in data:
     property_counter_map[p] += 1
 
 with st.expander("Number of **nodes: %d**, number of **properties: %d**" % (len(property_counter_map),len(resources)), expanded=False):
-    st.dataframe(pd.DataFrame({
+    properties_df = pd.DataFrame({
         "property": list(property_counter_map.keys()),
         "count": list(property_counter_map.values())
-    }).sort_values(by="count", ascending=False))
+    }).sort_values(by="count", ascending=False)
+    st.dataframe(properties_df)
+    # filter_properties_buttons = [False for i in range(len(properties_df))]
+    # for i in range(len(properties_df)):
+    #     print(properties_df.loc[i, "property"], properties_df.loc[i, "count"])
+    #     filter_properties_buttons[i] = st.button("%s (%d)" % (properties_df.loc[i, "property"], properties_df.loc[i, "count"]), help="add this property to the blacklist", key=properties_df.loc[i, "property"])
     #st.toast("""You might use these properties for the whitelist or blacklist.""", icon="💡", )
 
-
+# add all properties that were clicked to the blacklist
+# blacklist_properties += [properties_df.loc[i, "property"] for i in range(len(properties_df)) if filter_properties_buttons[i] == True] 
 
 
 for result in data + labels:
@@ -762,9 +861,9 @@ for result in data + labels:
         o_type = "none"
 
     if o in start_resources:
-        o_shape = "square"
+        o_shape = "box"
     if s in start_resources:
-        s_shape = "square"
+        s_shape = "box"
     
     if p in ["http://www.w3.org/2000/01/rdf-schema#label", "http://www.w3.org/2004/02/skos/core#prefLabel", "http://www.w3.org/2004/02/skos/core#altLabel"]:
         length = round(0.66 * springLength)
@@ -773,9 +872,9 @@ for result in data + labels:
     
     
     if s not in [x.id for x in nodes]:
-        nodes.append( Node(id=s, label=replace_url_by_prefixes(s), size=get_node_size(s), color=get_node_color(s, start_resources), shape=s_shape) )
+        nodes.append( Node(id=s, label=replace_url_by_prefixes(s), size=get_node_size(s), font=get_font_values(s, start_resources, p), color=get_node_color(s, start_resources), shape=s_shape) )
     if o not in [x.id for x in nodes]:
-        nodes.append( Node(id=o, label=o_label, size=get_node_size(o), color=get_node_color(o, start_resources, p), shape=o_shape ) )
+        nodes.append( Node(id=o, label=o_label, size=get_node_size(o), font=get_font_values(o, start_resources, p), color=get_node_color(o, start_resources, p), shape=o_shape ) )
     edges.append( Edge(source=s, label=replace_url_by_prefixes(p), target=o, color=get_color(p), length=length, arrows_to=True, arrows_from=False, type="CURVE_SMOOTH") )
 
 
@@ -872,8 +971,8 @@ if return_value is not None:
         if validators.url(return_value):
             resource_data = get_resource_data(sparql_endpoint, return_value, specific_graph)
         
-            df = get_dataframe_from_results(resource_data, indegree=indegree_map.get(return_value,0), outdegree=outdegree_map.get(return_value,0))
-            st.dataframe(df,
+            properties_df = get_dataframe_from_results(resource_data, indegree=indegree_map.get(return_value,0), outdegree=outdegree_map.get(return_value,0))
+            st.dataframe(properties_df,
                         column_config={
                             "property": st.column_config.TextColumn(),
                             "property_url": st.column_config.LinkColumn(),
