@@ -20,6 +20,7 @@ import pandas as pd
 from streamlit_agraph import agraph, Node, Edge, Config
 from streamlit_tags import st_tags, st_tags_sidebar
 import seaborn as sns
+import signal
 
 PAGE_ICON = config('PAGE_ICON')
 PAGE_IMAGE = config('PAGE_IMAGE')
@@ -99,6 +100,11 @@ blacklist_properties = []
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
+
+# if the dry run is enabled, we will stop the script
+if config('DRY_RUN', default=False, cast=bool):
+    logging.info("dry run enabled, will stop script, now")
+    os.kill(os.getpid(), signal.SIGTERM)
 
 
 replace_values_in_index_html(st, REPLACE_INDEX_HTML_CONTENT, 
