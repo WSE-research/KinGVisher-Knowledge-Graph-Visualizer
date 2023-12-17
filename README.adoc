@@ -11,7 +11,17 @@ ifdef::env-github[]
 :github-repository: https://github.com/WSE-research/Knowledge-Graph-Visualizer
 endif::[]
 
+++++
+<a href="https://github.com/WSE-research/Knowledge-Graph-Visualizer" title="goto GitHub repository of Knowledge Graph Visualizer">
+<img align="right" role="right" height="128" src="https://github.com/wse-research/Knowledge-Graph-Visualizer/blob/main/images/knowledge_graph_visualizer.png?raw=true"/>
+</a>
+++++
+
 = Knowledge Graph Visualizer
+
+The Knowledge Graph Visualizer is a tool to visualize knowledge graphs in a web browser.
+It uses existing RDF triplestore endpoints (e.g., https://www.dbpedia.org/[DBpedia] or https://www.wikidata.org/[Wikidata] or your private endpoint) to retrieve the data and visualize it.
+For the implementation, we use the https://streamlit.io/[Streamlit] framework and https://github.com/ChrisDelClea/streamlit-agraph[agraph library] (a wrapper for the https://visjs.org/[vis.js] library).
 
 ---
 
@@ -19,14 +29,33 @@ toc::[]
 
 ---
 
+== Start the application locally
+
+First, install the requirements:
+
+```shell
+pip3 install -r requirements.txt
+```
+
+Then, start the application:
 
 ```shell
 python3 -m streamlit run knowledge_graph_visualizer.py
 ```
 
-== Dockerhub
+== Start the application with Docker
 
-https://hub.docker.com/r/wseresearch/knowledge-graph-visualizer/tags
+A Docker image is available on https://hub.docker.com/r/wseresearch/knowledge-graph-visualizer[Dockerhub] for convenient usage.
+
+```shell
+docker run -p 8501:8501 wseresearch/knowledge-graph-visualizer
+```
+
+If you want to build the image yourself, you can use the following command:
+
+```shell
+docker build -t knowledge-graph-visualizer:latest .
+```
 
 == Contribute
 
