@@ -29,6 +29,16 @@ toc::[]
 
 ---
 
+++++
+<a href="https://github.com/wse-research/Knowledge-Graph-Visualizer/blob/main/images/knowledge_graph_visualizer-screenshot.png?raw=true" title="Screenshot of Knowledge Graph Visualizer app" style="cursor: zoom-in;">
+<img align="right" role="right" width="50%" src="https://github.com/wse-research/Knowledge-Graph-Visualizer/blob/main/images/knowledge_graph_visualizer-screenshot.png?raw=true"/>
+</a>
+++++
+
+== Online Demo
+
+You can try out the tool online at https://wse-research.org/knowledge-graph-visualizer/.
+
 == Start the application locally
 
 First, install the requirements:
