@@ -23,17 +23,18 @@ The Knowledge Graph Visualizer is a tool to visualize knowledge graphs in a web 
 It uses existing RDF triplestore endpoints (e.g., https://www.dbpedia.org/[DBpedia] or https://www.wikidata.org/[Wikidata] or your private endpoint) to retrieve the data and visualize it.
 For the implementation, we use the https://streamlit.io/[Streamlit] framework and https://github.com/ChrisDelClea/streamlit-agraph[agraph library] (a wrapper for the https://visjs.org/[vis.js] library).
 
----
-
-toc::[]
-
----
 
 ++++
 <a href="https://github.com/wse-research/Knowledge-Graph-Visualizer/blob/main/images/knowledge_graph_visualizer-screenshot.png?raw=true" title="Screenshot of Knowledge Graph Visualizer app" style="cursor: zoom-in;">
 <img align="right" role="right" width="50%" src="https://github.com/wse-research/Knowledge-Graph-Visualizer/blob/main/images/knowledge_graph_visualizer-screenshot.png?raw=true"/>
 </a>
 ++++
+
+---
+
+toc::[]
+
+---
 
 == Online Demo
 
