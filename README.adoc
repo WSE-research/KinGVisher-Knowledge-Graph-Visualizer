@@ -22,7 +22,11 @@ toc::[]
 
 ```shell
 python3 -m streamlit run knowledge_graph_visualizer.py
-````
+```
+
+== Dockerhub
+
+https://hub.docker.com/r/wseresearch/knowledge-graph-visualizer/tags
 
 == Contribute
 
