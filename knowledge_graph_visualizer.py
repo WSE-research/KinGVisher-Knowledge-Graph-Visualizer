@@ -85,7 +85,8 @@ PREFIXES = {
     "ex": "http://example.org/",
     "gr": "http://purl.org/goodrelations/v1#",
     "spacerel": "http://data.ordnancesurvey.co.uk/ontology/spatialrelations/",
-    "qb": "http://purl.org/linked-data/cube#"
+    "qb": "http://purl.org/linked-data/cube#",
+    "question": "http://localhost:8080/question/stored-question__text_"
 }
 
 width = 60
@@ -1008,7 +1009,7 @@ if return_value is not None:
 
 st.markdown("""
 ---
-Brought to you by the [<img style="height:3ex;border:0" src="https://avatars.githubusercontent.com/u/120292474?s=96&v=4"> WSE research group](https://wse-research.org/) at the [Leipzig University of Applied Sciences](https://www.htwk-leipzig.de/).
+Brought to you by the [<img style="height:3ex;border:0" src="https://avatars.githubusercontent.com/u/120292474?s=96&v=4"> WSE research group](https://wse-research.org/?utm_source=knowledge_graph_visualizer&utm_medium=footer) at the [Leipzig University of Applied Sciences](https://www.htwk-leipzig.de/).
 
 See our [GitHub team page](http://wse.technology/) for more projects and tools.
 """, unsafe_allow_html=True)

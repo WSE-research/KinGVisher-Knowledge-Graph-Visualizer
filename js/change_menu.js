@@ -33,7 +33,7 @@ waitForElm('#MainMenu').then((elm) => {
     if (parent.window.document.getElementById("WSElogo") == null) {
         let new_logo = parent.window.document.getElementById("MainMenu").parentElement.appendChild(parent.window.document.createElement("span"));
         new_logo.innerHTML = `
-        <a href="https://wse-research.org?utm_source=knowledge_graph_visualizer" title="Brought to you by the WSE research group at the Leipzig University of Applied Sciences. See our GitHub team page for more projects and tools." target="_blank">
+        <a href="https://wse-research.org/?utm_source=knowledge_graph_visualizer&utm_medium=header" title="Brought to you by the WSE research group at the Leipzig University of Applied Sciences. See our GitHub team page for more projects and tools." target="_blank">
         <img id="WSElogo" src='https://avatars.githubusercontent.com/u/120292474?s=96&v=4'>
         </a>
         <style>
