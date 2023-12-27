@@ -41,6 +41,7 @@ SLEEP_TIME = 0.1
 START_RESOURCE_COLOR = "#0000FF"
 NODE_COLOR_LITERAL = "#FFFF99"
 NODE_COLOR_LABEL = "#CCFFCC"
+RDF_TYPE_EDGE_COLOR = "#00AA00"
 LOCAL_CACHE_FOLDER = "local_cache/"
 
 INGOING_EDGES_ONLY = "⭘ ⭢ ⬛: only ingoing edges to the start resources"
@@ -50,6 +51,7 @@ INGOING_AND_OUTGOING_EDGES = "⭘ ⮂ ⬛: include ingoing and outgoing edges"
 
 DBPEDIA_ENDPOINT = "http://dbpedia.org/sparql"
 WIKIDATA_ENDPOINT = "https://query.wikidata.org/sparql"
+RDF_TYPE_URL = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
 
 PREFIXES = {
     "dbr": "http://dbpedia.org/resource/",
@@ -77,7 +79,8 @@ PREFIXES = {
     "ps": "http://www.wikidata.org/prop/statement/",
     "pq": "http://www.wikidata.org/prop/qualifier/",
     "bd": "http://www.bigdata.com/rdf#",
-    "oa": "http://www.w3.org/ns/openannotation/core/",
+    "oac": "http://www.w3.org/ns/openannotation/core/",
+    "oa": "http://www.w3.org/ns/oa#",
     "qa": "http://www.wdaqua.eu/qa#",
     "gold:hypernym": "http://purl.org/linguistics/gold/hypernym",
     "madsrdf": "http://loc.hi.hi.gov/hihi/",
@@ -86,7 +89,11 @@ PREFIXES = {
     "gr": "http://purl.org/goodrelations/v1#",
     "spacerel": "http://data.ordnancesurvey.co.uk/ontology/spatialrelations/",
     "qb": "http://purl.org/linked-data/cube#",
-    "question": "http://localhost:8080/question/stored-question__text_"
+    "question": "http://localhost:8080/question/stored-question__text_",
+    "powder": "http://www.w3.org/2007/05/powder-s#",
+    "vocab": "http://open.vocab.org/terms/",
+    "bNode": "nodeID://", # blank nodes in Virtuoso
+    "annotation": "urn:qanary:annotation:" # Qanary annotation
 }
 
 width = 60
@@ -187,8 +194,8 @@ def execute_start_resource_query_convert(sparql_endpoint, graph, all_start_value
     size = 25
     start_values_chunks = [all_start_values[x:x+size] for x in range(0, len(all_start_values), size)]
     
-    print("execute_start_resource_query_convert:" + str(len(all_start_values)) )
-    pprint(start_values_chunks, width=160)
+    logging.debug("execute_start_resource_query_convert:" + str(len(all_start_values)) )
+    #pprint(start_values_chunks, width=160)
     
     if use_edges is INGOING_EDGES_ONLY or use_edges is INGOING_AND_OUTGOING_EDGES or use_edges is OUTGOING_EDGES_ONLY:
         pass # ok
@@ -251,7 +258,7 @@ def execute_start_resource_query_convert(sparql_endpoint, graph, all_start_value
             # order results randomly
             ORDER BY RAND()
         """ % (get_graph_expression(graph), query_string_ingoing, query_string_outgoing, p_values, p_blocked_values)
-        print("execute_start_resource_query_convert:", count, "/", len(start_values_chunks), query_string)
+        #print("execute_start_resource_query_convert:", count, "/", len(start_values_chunks), query_string)
         
         all_queries += query_string
         results_iteration = execute_query_convert(sparql_endpoint, query_string)
@@ -265,6 +272,12 @@ def execute_start_resource_query_convert(sparql_endpoint, graph, all_start_value
 
     return results, all_queries
 
+def is_resource(str):
+    return (
+            validators.url(str) or 
+            str.startswith("urn:") or   # e.g., urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66
+            str.startswith("nodeID://") # e.g., nodeID://b1 as used in Virtuoso triplestores
+    )
 
 def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_properties, start_resources, graph, use_edges):
     
@@ -330,9 +343,9 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
                     s = result["s"]["value"]
                     o = result["o"]["value"]
                     direction = result["direction"]["value"]
-                    if s not in start_resources and s not in new_start_resources and s not in start_resources and validators.url(s) and direction == "ingoing":
+                    if s not in start_resources and s not in new_start_resources and s not in start_resources and is_resource(s) and direction == "ingoing":
                         new_start_resources.append(s)
-                    if o not in start_resources and o not in new_start_resources and o not in start_resources and validators.url(o) and direction == "outgoing":
+                    if o not in start_resources and o not in new_start_resources and o not in start_resources and is_resource(o) and direction == "outgoing":
                         new_start_resources.append(o) 
             except Exception as e:
                 st.error(st.code(all_query_strings))
@@ -341,7 +354,7 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
                 logging.error(e)
                 new_start_resources = []
                     
-            print("STEP: old_start_resources:", len(start_resources), "results_iteration:", len(results_iteration), "results:", len(results))
+            #print("STEP: old_start_resources:", len(start_resources), "results_iteration:", len(results_iteration), "results:", len(results))
             
             # while considering ingoing and outgoing edges, we want to ensure to expand
             if use_edges is INGOING_AND_OUTGOING_EDGES:
@@ -351,10 +364,10 @@ def get_data(sparql_endpoint, number_of_results, allowed_properties, blocked_pro
                 start_resources =  start_resources.copy() + original_start_resources.copy()
             
             results += results_iteration
-            print("STEP: new_start_resources:", len(new_start_resources), "results_iteration:", len(results_iteration), "results:", len(results))
+            #print("STEP: new_start_resources:", len(new_start_resources), "results_iteration:", len(results_iteration), "results:", len(results))
             
             if len(new_start_resources) == 0: # stop if no more resources are found
-                print("no more NEW start resources found")
+                logging.debug("no more NEW start resources found")
                 break
             else:
                 time.sleep(SLEEP_TIME)
@@ -387,14 +400,14 @@ def get_all_properties(sparql_endpoint, graph=None):
     cleaned_sparql_endpoint = sparql_endpoint.replace(":", "_").replace("/", "_").replace(".", "_")
     cache_filename= LOCAL_CACHE_FOLDER + "/all_properties_" + cleaned_sparql_endpoint + "_" + str(graph) + ".json"
     
-    print("checking for cache file: " + cache_filename + " ...")
+    logging.info("checking for cache file: " + cache_filename + " ...")
     if os.path.exists(cache_filename):    
-        print("loading all properties from cache file: " + cache_filename + " ...")
+        logging.info("loading all properties from cache file: " + cache_filename + " ...")
         with open(cache_filename, "r") as f:
             all_properties = json.load(f)
             return all_properties        
     else:
-        print("cache file not found, will create it later with the retrieved results: " + cache_filename + " ...")
+        logging.info("cache file not found, will create it later with the retrieved results: " + cache_filename + " ...")
     
     page = 0
     all_properties = []
@@ -456,7 +469,7 @@ def get_all_properties(sparql_endpoint, graph=None):
     # cache all data in a file
     with open(cache_filename, "w") as f:
         json.dump(all_properties, f)
-        print("cache file written: " + cache_filename + " ...")
+        logging.info("cache file written: " + cache_filename + " ...")
     
     return all_properties
 
@@ -494,25 +507,25 @@ def get_resource_data(sparql_endpoint, uri, graph):
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
             PREFIX dbr: <http://dbpedia.org/resource/>
             
-            SELECT DISTINCT ?p ?p_label ?o
+            SELECT DISTINCT *
             WHERE {
                 %s {
                     <%s> ?p ?o .
-                    ?p rdfs:label ?p_label .
-                    FILTER(!isLiteral(?p_label) || lang(?p_label) = "" || langMatches(lang(?p_label), "EN"))
-                    #BIND (datatype(?o) AS ?dt)
-                    FILTER(STR(?p) != "http://dbpedia.org/ontology/wikiPageWikiLink")
-                    FILTER(STR(?p) != "http://dbpedia.org/property/wikiPageUsesTemplate")
-                    FILTER(STR(?p) != "http://www.w3.org/2002/07/owl#sameAs")
+                    OPTIONAL {
+                        ?p rdfs:label ?p_label .
+                        FILTER(!isLiteral(?p_label) || lang(?p_label) = "" || langMatches(lang(?p_label), "EN"))
+                        FILTER(STR(?p) != "http://dbpedia.org/ontology/wikiPageWikiLink")
+                        FILTER(STR(?p) != "http://dbpedia.org/property/wikiPageUsesTemplate")
+                        FILTER(STR(?p) != "http://www.w3.org/2002/07/owl#sameAs")
+                    }
                     FILTER(!isLiteral(?o) || lang(?o) = "" || langMatches(lang(?o), "EN"))
-                    #BIND(STR(?o) AS ?o_v)
                 }
             }
             ORDER BY LCASE(?p_label)
         """ % (graph_expession,uri)
     #print(query_string)
     
-    with st.expander("SPARQL query for " + uri.replace("_", "&#95;").replace(":", "\:"), expanded=False):
+    with st.expander("SPARQL query for retrieving resource data for " + uri.replace("_", "&#95;").replace(":", "\:"), expanded=False):
         st.code(query_string)
     
     results = execute_query_convert(sparql_endpoint, query_string)    
@@ -529,9 +542,11 @@ def get_dataframe_from_results(resource_data, indegree, outdegree):
 
     def get_properties(resource_data):
         for result in resource_data:
-            p = result["p"]["value"]
-            p_label = result["p_label"]["value"]
-            #yield "[%s](%s)" % (p_label, p)
+            #p = result["p"]["value"]
+            if "p_label" in result:
+                p_label = result["p_label"]["value"]
+            else:
+                p_label = "no label"
             yield p_label
     
     def get_values(resource_data):
@@ -556,9 +571,9 @@ def get_labels(sparql_endpoint, results, show_resource_labels):
         p = result["p"]["value"]
         o = result["o"]["value"]
 
-        if validators.url(s) and s not in resources:
+        if is_resource(s) and s not in resources:
             resources.append(s)
-        if validators.url(o) and o not in resources:
+        if is_resource(o) and o not in resources:
             resources.append(o)
         #if p not in resources:
         #    resources.append(p)
@@ -626,11 +641,13 @@ def get_labels(sparql_endpoint, results, show_resource_labels):
     return results, resources
 
 
-def replace_url_by_prefixes(url):
-    for prefix, prefix_url in PREFIXES.items():
-        if url.startswith(prefix_url):
-            return prefix + ":" + url[len(prefix_url):]
-    return url
+def replace_prefixes_if_uri(str):
+    if is_resource(str):
+        for prefix, prefix_url in PREFIXES.items():
+            if str.startswith(prefix_url):
+                return prefix + ":" + str[len(prefix_url):]
+        logging.debug("no prefix found for url: " + str)
+    return str
 
 
 def get_node_size(str):
@@ -639,9 +656,12 @@ def get_node_size(str):
     return round(math.log(node_size * 20, 2))
 
 @st.cache_data
-def get_color(str):
+def get_edge_color(str):
     if str == "none":
         return "#000000"
+    
+    if str != None and str in [RDF_TYPE_URL]:
+        return RDF_TYPE_EDGE_COLOR
     
     if str not in color_map and len(palette) > 0:
         last_color = palette.pop()
@@ -660,30 +680,45 @@ def get_node_color_palette(number_of_colors=40):
     # remove dark colors
     return node_color_palette[:round(0.66 * len(node_color_palette))]
     
-
-
 @st.cache_data
+def get_node_types_color_palette(number_of_colors=20):
+    node_color_palette = sns.color_palette("Greens", 20).as_hex() 
+    # remove dark colors
+    return node_color_palette[:round(0.66 * len(node_color_palette))]
+    
+
+
+@st.cache_data #required to ensure a consistent color assignment to the nodes
 def get_node_color(node_id, start_resources, p=None):
     
     if node_id in start_resources:
         return START_RESOURCE_COLOR
     
-    # grey color of all labels
-    if p != None and p in ["http://www.w3.org/2000/01/rdf-schema#label", "http://www.w3.org/2004/02/skos/core#prefLabel", "http://www.w3.org/2004/02/skos/core#altLabel"]:
-        return NODE_COLOR_LABEL
-    
     if node_id == "none":
         return "#000000"
     
-    if validators.url(node_id) == True:
+    if is_resource(node_id):
         node_degree = get_node_degree(node_id)
         max_degree = get_max_node_degree()
-        
+
+        if p != None: # grey color of all labels
+            if p in ["http://www.w3.org/2000/01/rdf-schema#label", "http://www.w3.org/2004/02/skos/core#prefLabel", "http://www.w3.org/2004/02/skos/core#altLabel"]:
+                return NODE_COLOR_LABEL
+            elif p in [RDF_TYPE_URL]:
+                global node_types_color_palette # TODO: move to class property
+                i = min(round(node_degree / max_degree * (len(node_types_color_palette) - 1)), (len(node_types_color_palette) - 1))
+                node_type_color  = node_types_color_palette[i]
+                # remove the color from the palette
+                if len(node_types_color_palette) > 1: # only remove if we have more than one color left
+                    node_types_color_palette.remove(node_type_color)
+                return node_type_color
+
         global node_color_palette # TODO: move to class property
         i = min(round(node_degree / max_degree * (len(node_color_palette) - 1)), (len(node_color_palette) - 1))
         color = node_color_palette[i]
         return color
     else: # literal
+        logging.debug("literal node: " + node_id)
         return NODE_COLOR_LITERAL
 
 
@@ -719,6 +754,7 @@ def create_help_string_from_list(my_values):
     return "Examples: \n* `" + "`\n* `".join(my_values_copy[:25]) + "`"
 
 node_color_palette = get_node_color_palette()
+node_types_color_palette = get_node_types_color_palette()
 
 all_properties = get_all_properties(sparql_endpoint, graph=specific_graph)
 
@@ -784,7 +820,6 @@ if number_of_results >= 300:
     st.sidebar.info("Please be patient, this might take a while depending on your browser's computing power.")
     
 shape = st.sidebar.selectbox('shape',['box','ellipse','text','dot','square','star','triangle','triangleDown'], index=0) # ,'circle','database','image','circularImage','diamond','hexagon'
-show_resource_labels = st.sidebar.checkbox("show resource labels", value=True)
 node_font_size = st.sidebar.slider("node font size",min_value=1, max_value=20, value=8)
 edge_font_size = st.sidebar.slider("edge font size",min_value=1, max_value=20, value=8)
 layout = "" # st.sidebar.selectbox('layout',['dot','neato','circo','fdp','sfdp'], index=0)
@@ -798,9 +833,11 @@ fit = True
 edgeMinimization = False
 # solver = st.sidebar.selectbox("solver", ['barnesHut', 'repulsion', 'hierarchicalRepulsion', 'forceAtlas2Based'], index=2)
 
+show_resource_labels = st.sidebar.checkbox("show resource labels", value=True, help="show labels of resources in the network")
 hierarchical = st.sidebar.checkbox("hierarchical layout", value=False)
-
-show_visualization_options_in_rendered_network = st.sidebar.checkbox("Show visualization options in rendered network", value=False)
+split_type_nodes = st.sidebar.checkbox("split type nodes", value=False, help="""networks might be centered around nodes that represent types in the knowledge graph
+                                       (connected by rdf:type edges), to split them up, check this option, s.t., each type node is drawn separately connected by green edges""")
+show_visualization_options_in_rendered_network = st.sidebar.checkbox("Show visualization options in rendered network", value=False, help="Show visualization options below the rendered network to enable you of manipulating the intensively rendering of the graph interactively")
 
 st.sidebar.markdown("----")
 st.sidebar.info("The app will cache the SPARQL query results for 7 days to not waste resources of the used SPARQL endpoint.")
@@ -846,37 +883,53 @@ with st.expander("Number of **nodes: %d**, number of **properties: %d**" % (len(
         "count": list(property_counter_map.values())
     }).sort_values(by="count", ascending=False)
     st.dataframe(properties_df)
-    # filter_properties_buttons = [False for i in range(len(properties_df))]
-    # for i in range(len(properties_df)):
-    #     print(properties_df.loc[i, "property"], properties_df.loc[i, "count"])
-    #     filter_properties_buttons[i] = st.button("%s (%d)" % (properties_df.loc[i, "property"], properties_df.loc[i, "count"]), help="add this property to the blacklist", key=properties_df.loc[i, "property"])
-    #st.toast("""You might use these properties for the whitelist or blacklist.""", icon="💡", )
 
-# add all properties that were clicked to the blacklist
-# blacklist_properties += [properties_df.loc[i, "property"] for i in range(len(properties_df)) if filter_properties_buttons[i] == True] 
-
-
+logging.info("number of nodes: %d" % (len(resources),))
+logging.info("number of edges: %d" % (len(data + labels),))
+triples_memory = [] # save all processed triples to avoid duplicates
+node_counter = 0
 for result in data + labels:
-    # https://github.com/ChrisDelClea/streamlit-agraph/blob/master/streamlit_agraph/node.py#L18
+    
+    # make JSON string from result
+    result_json = json.dumps([result["s"],result["p"],result["o"]])
+    # check for duplicates
+    if result_json in triples_memory:
+        continue
+    else:
+        triples_memory.append(result_json)
+
     
     s = result["s"]["value"]
+    p = result["p"]["value"]
+    o = result["o"]["value"]
+
+    # default values, might be overwritten later
+    s_node_size = get_node_size(s)
+    o_node_size = get_node_size(o)
+    s_label = replace_prefixes_if_uri(s)
+    o_label = replace_prefixes_if_uri(o)
+    s_font_values = get_font_values(s, start_resources, p)
+    o_font_values = get_font_values(o, start_resources, p)
+    s_node_color = get_node_color(s, start_resources)
+    o_node_color = get_node_color(o, start_resources, p)
+    p_color = get_edge_color(p)
+    p_label = replace_prefixes_if_uri(p)
     s_shape = shape
+    o_shape = shape
+    length = springLength
+    
     if "s_type" in result:
-        s_type = replace_url_by_prefixes(result["s_type"]["value"])
+        s_type = replace_prefixes_if_uri(result["s_type"]["value"])
     else:
         s_type = "none"
         
-    p = result["p"]["value"]
-    
-    o = result["o"]["value"]
-    if validators.url(o):
-        o_label = replace_url_by_prefixes(o)
+    if is_resource(o):
+        o_label = replace_prefixes_if_uri(o)
     else:
         o_label = o[:64] # cut down to 64 characters
 
-    o_shape = shape
     if "o_type" in result:
-        o_type = replace_url_by_prefixes(result["o_type"]["value"])
+        o_type = replace_prefixes_if_uri(result["o_type"]["value"])
     else:
         o_type = "none"
 
@@ -887,15 +940,23 @@ for result in data + labels:
     
     if p in ["http://www.w3.org/2000/01/rdf-schema#label", "http://www.w3.org/2004/02/skos/core#prefLabel", "http://www.w3.org/2004/02/skos/core#altLabel"]:
         length = round(0.66 * springLength)
-    else:
-        length = springLength
     
-    
+    logging.debug("s: %s (%s) -- p: %s (%s) --> o: %s (%s)" % (s, s_label, p, p_label, o, o_label))
+        
+    # mode: split nodes
+    if split_type_nodes:
+        if p in [RDF_TYPE_URL]:
+            p_label = ""
+            length = round(0.5 * springLength)
+            o = o + str(node_counter) # add counter to ensure unique node ids
+            node_counter += 1 # increase counter
+
+    # https://github.com/ChrisDelClea/streamlit-agraph/blob/master/streamlit_agraph/node.py#L18
     if s not in [x.id for x in nodes]:
-        nodes.append( Node(id=s, label=replace_url_by_prefixes(s), size=get_node_size(s), font=get_font_values(s, start_resources, p), color=get_node_color(s, start_resources), shape=s_shape) )
+        nodes.append( Node(id=s, label=s_label, size=s_node_size, font=s_font_values, color=s_node_color, shape=s_shape) )
     if o not in [x.id for x in nodes]:
-        nodes.append( Node(id=o, label=o_label, size=get_node_size(o), font=get_font_values(o, start_resources, p), color=get_node_color(o, start_resources, p), shape=o_shape ) )
-    edges.append( Edge(source=s, label=replace_url_by_prefixes(p), target=o, color=get_color(p), length=length, arrows_to=True, arrows_from=False, type="CURVE_SMOOTH") )
+        nodes.append( Node(id=o, label=o_label, size=o_node_size, font=o_font_values, color=o_node_color, shape=o_shape ) )
+    edges.append( Edge(source=s, label=p_label, target=o, color=p_color, length=length, arrows_to=True, arrows_from=False, type="CURVE_SMOOTH") )
 
 
 
@@ -927,7 +988,10 @@ config = Config(width="100%",
                         "enabled": hierarchical,
                         "shakeTowards": "roots"
                     }
-                },                
+                },   
+                interaction={
+                    "hover": True
+                }             
                 # physics={
                 #     "enabled": {
                 #         "solver": solver,
@@ -988,7 +1052,7 @@ return_value = agraph(nodes=nodes, edges=edges, config=config)
 
 if return_value is not None:    
     try:    
-        if validators.url(return_value):
+        if is_resource(return_value):
             resource_data = get_resource_data(sparql_endpoint, return_value, specific_graph)
         
             properties_df = get_dataframe_from_results(resource_data, indegree=indegree_map.get(return_value,0), outdegree=outdegree_map.get(return_value,0))
@@ -1001,7 +1065,7 @@ if return_value is not None:
                         height=500,
             )
         else:
-            st.info("Please click on a resource node to see more information from the knowledge graph.")
+            st.info("Literal: " + return_value)
     except Exception as e:
         st.error(e)
 
