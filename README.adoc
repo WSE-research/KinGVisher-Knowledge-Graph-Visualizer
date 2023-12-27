@@ -20,7 +20,8 @@ endif::[]
 = Knowledge Graph Visualizer
 
 The Knowledge Graph Visualizer is a tool to visualize knowledge graphs in a web browser.
-It uses existing RDF triplestore endpoints (e.g., https://www.dbpedia.org/[DBpedia] or https://www.wikidata.org/[Wikidata] or your private endpoint) to retrieve the data and visualize it.
+It uses existing RDF triplestore endpoints (e.g., https://www.dbpedia.org/[DBpedia], https://www.wikidata.org/[Wikidata], or your private endpoint) to retrieve the data and visualize it.
+It provides a user-friendly interface for exploring the data and creating visualizations by defining resources that are used as starting points for graph exploration, white and black lists for predicates, and visual styles for the nodes and edges.
 For the implementation, we use the https://streamlit.io/[Streamlit] framework and https://github.com/ChrisDelClea/streamlit-agraph[agraph library] (a wrapper for the https://visjs.org/[vis.js] library).
 
 
@@ -67,6 +68,11 @@ If you want to build the image yourself, you can use the following command:
 ```shell
 docker build -t knowledge-graph-visualizer:latest .
 ```
+
+== Configuration
+
+The configuration of the data sources and the visualization is done interactively via the web interface.
+Please see the file link:./.env[.env] for the basic configuration of the application itself.
 
 == Contribute
 
