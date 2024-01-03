@@ -93,7 +93,8 @@ PREFIXES = {
     "powder": "http://www.w3.org/2007/05/powder-s#",
     "vocab": "http://open.vocab.org/terms/",
     "bNode": "nodeID://", # blank nodes in Virtuoso
-    "annotation": "urn:qanary:annotation:" # Qanary annotation
+    "annotation": "urn:qanary:annotation:", # Qanary annotation
+    "question-text": "http://localhost:8080/question/stored-question__text_" # Qanary question text
 }
 
 width = 60
