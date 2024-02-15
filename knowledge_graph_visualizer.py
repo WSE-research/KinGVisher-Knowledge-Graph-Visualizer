@@ -403,14 +403,20 @@ def get_all_properties(sparql_endpoint, graph=None):
     cache_filename= LOCAL_CACHE_FOLDER + "/all_properties_" + cleaned_sparql_endpoint + "_" + str(graph) + ".json"
     
     logging.info("checking for cache file: " + cache_filename + " ...")
-    if os.path.exists(cache_filename):    
-        logging.info("loading all properties from cache file: " + cache_filename + " ...")
-        with open(cache_filename, "r") as f:
-            all_properties = json.load(f)
-            return all_properties        
-    else:
-        logging.info("cache file not found, will create it later with the retrieved results: " + cache_filename + " ...")
     
+    try:
+        if os.path.exists(cache_filename):    
+            logging.info("loading all properties from cache file: " + cache_filename + " ...")
+            with open(cache_filename, "r") as f:
+                all_properties = json.load(f)
+                return all_properties        
+        else:
+            logging.info("cache file not found, will create it later with the retrieved results: " + cache_filename + " ...")
+    except Exception as e:
+        logging.error(e)
+        logging.error("could not load cache file: " + cache_filename)
+        logging.error("will create it later with the retrieved results")    
+        
     page = 0
     all_properties = []
     
