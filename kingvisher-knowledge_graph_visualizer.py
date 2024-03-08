@@ -31,7 +31,7 @@ REPLACE_INDEX_HTML_CONTENT = config('REPLACE_INDEX_HTML_CONTENT', default=False,
 CANONICAL_URL = config('CANONICAL_URL', default=None)
 ADDITIONAL_HTML_HEAD_CONTENT = config('ADDITIONAL_HTML_HEAD_CONTENT', default="")
 
-PAGE_TITLE = "Knowledge Graph Visualizer"
+PAGE_TITLE = "KinGVisher -- Knowledge Graph Visualizer"
 MIN_WIDTH = 10
 MAX_WIDTH = 300
 RENDER_SCALE_PIXELS = 8
@@ -157,10 +157,10 @@ specific_graph = st.sidebar.text_input("Specific graph:", key="specific_graph", 
 
 if sparql_endpoint != None and validators.url(sparql_endpoint):
     sparql = SPARQLWrapper(sparql_endpoint)
-    st.header(f"Knowledge Graph Visualizer for&nbsp;[{sparql_endpoint}]({sparql_endpoint}) ", help="Used prefixes: \n* " + "\n* ".join([f"`{prefix}: {prefix_url}`" for prefix, prefix_url in PREFIXES.items()]))
+    st.header(f"KinGVisher – Knowledge Graph Visualizer for&nbsp;[{sparql_endpoint}]({sparql_endpoint}) ", help="Used prefixes: \n* " + "\n* ".join([f"`{prefix}: {prefix_url}`" for prefix, prefix_url in PREFIXES.items()]))
 else:
     sparql = None
-    st.header("Knowledge Graph Visualizer")
+    st.header("KinGVisher – Knowledge Graph Visualizer")
     st.info("Please provide a valid SPARQL endpoint, e.g., %s or %s" % (DBPEDIA_ENDPOINT, WIKIDATA_ENDPOINT))
     st.stop()
 
@@ -827,7 +827,7 @@ number_of_results = st.sidebar.slider("number of edges",min_value=10, max_value=
 if number_of_results >= 300:
     st.sidebar.info("Please be patient, this might take a while depending on your browser's computing power.")
     
-shape = st.sidebar.selectbox('shape',['box','ellipse','text','dot','square','star','triangle','triangleDown'], index=0) # ,'circle','database','image','circularImage','diamond','hexagon'
+shape = st.sidebar.selectbox('shape of nodes',['box','ellipse','text','dot','square','star','triangle','triangleDown'], index=0) # ,'circle','database','image','circularImage','diamond','hexagon'
 node_font_size = st.sidebar.slider("node font size",min_value=1, max_value=20, value=8)
 edge_font_size = st.sidebar.slider("edge font size",min_value=1, max_value=20, value=8)
 layout = "" # st.sidebar.selectbox('layout',['dot','neato','circo','fdp','sfdp'], index=0)
@@ -835,14 +835,14 @@ rankdir = "" # st.sidebar.selectbox("rankdir", ['BT', 'TB', 'LR', 'RL'], index=2
 ranksep = "" # st.sidebar.slider("ranksep",min_value=0, max_value=20, value=10)
 nodesep = "" # st.sidebar.slider("nodesep",min_value=0, max_value=20, value=5)
 nodeSpacing = "" # st.sidebar.slider("nodeSpacing",min_value=50, max_value=500, value=200, step=50)
-springLength = st.sidebar.slider("edge length",min_value=0, max_value=500, value=150)
+springLength = st.sidebar.slider("edge length",min_value=0, max_value=500, value=200)
 # stabilization = True
 fit = True
 edgeMinimization = False
 # solver = st.sidebar.selectbox("solver", ['barnesHut', 'repulsion', 'hierarchicalRepulsion', 'forceAtlas2Based'], index=2)
 
 show_resource_labels = st.sidebar.checkbox("show resource labels", value=True, help="show labels of resources in the network")
-hierarchical = st.sidebar.checkbox("hierarchical layout", value=False)
+hierarchical = st.sidebar.checkbox("hierarchical layout", value=False, help="prefers top-down layout")
 split_type_nodes = st.sidebar.checkbox("split type nodes", value=False, help="""networks might be centered around nodes that represent types in the knowledge graph
                                        (connected by rdf:type edges), to split them up, check this option, s.t., each type node is drawn separately connected by green edges""")
 show_visualization_options_in_rendered_network = st.sidebar.checkbox("Show visualization options in rendered network", value=False, help="Show visualization options below the rendered network to enable you of manipulating the intensively rendering of the graph interactively")
@@ -1081,7 +1081,7 @@ if return_value is not None:
 
 st.markdown("""
 ---
-Brought to you by the [<img style="height:3ex;border:0" src="https://avatars.githubusercontent.com/u/120292474?s=96&v=4"> WSE research group](https://wse-research.org/?utm_source=knowledge_graph_visualizer&utm_medium=footer) at the [Leipzig University of Applied Sciences](https://www.htwk-leipzig.de/).
+Brought to you by the [<img style="height:3ex;border:0" src="https://avatars.githubusercontent.com/u/120292474?s=96&v=4"> WSE research group](https://wse-research.org/?utm_source=kingvisher&utm_medium=footer) at the [Leipzig University of Applied Sciences](https://www.htwk-leipzig.de/).
 
 See our [GitHub team page](http://wse.technology/) for more projects and tools.
 """, unsafe_allow_html=True)
