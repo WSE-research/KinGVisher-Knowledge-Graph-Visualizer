@@ -38,6 +38,10 @@ toc::[]
 
 ---
 
+++++
+<br>
+++++
+
 == Online Demo
 
 You can try out the tool online at https://wse-research.org/kingvisher-knowledge-graph-visualizer/ (or short https://wse-research.org/kingvisher).
