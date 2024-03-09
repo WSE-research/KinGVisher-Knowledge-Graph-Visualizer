@@ -2,3 +2,7 @@ section[data-testid="stSidebar"] img {
     border: 0;
     filter: drop-shadow(0.25ex 0.25ex 0.25ex #666);
 }
+
+section[data-testid="stSidebar"] img:hover {
+    filter: drop-shadow(0.25ex 0.25ex 0.25ex #333); 
+}
