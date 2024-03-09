@@ -8,18 +8,19 @@ ifdef::env-github[]
 :important-caption: :heavy_exclamation_mark:
 :caution-caption: :fire:
 :warning-caption: :warning:
-:github-repository: https://github.com/WSE-research/Knowledge-Graph-Visualizer
+:github-repository: https://github.com/WSE-research/KinGVisher-Knowledge-Graph-Visualizer
 endif::[]
 
+
 ++++
-<a href="https://github.com/WSE-research/Knowledge-Graph-Visualizer" title="goto GitHub repository of Knowledge Graph Visualizer">
-<img align="right" role="right" height="128" src="https://github.com/wse-research/Knowledge-Graph-Visualizer/blob/main/images/knowledge_graph_visualizer.png?raw=true"/>
+<a href="https://github.com/WSE-research/Knowledge-Graph-Visualizer" title="goto GitHub repository of KinGVisher - Knowledge Graph Visualizer">
+<img align="left" role="right" height="128" src="https://github.com/wse-research/KinGVisher-Knowledge-Graph-Visualizer/blob/main/images/kingvisher_512.png?raw=true" style="z-index:1000"/>
 </a>
 ++++
 
-= Knowledge Graph Visualizer
+= KinGVisher - Knowledge Graph Visualizer
 
-The Knowledge Graph Visualizer is a tool to visualize knowledge graphs in a web browser.
+The KinGVisher - Knowledge Graph Visualizer - is a tool to visualize knowledge graphs in a web browser.
 It uses existing RDF triplestore endpoints (e.g., https://www.dbpedia.org/[DBpedia], https://www.wikidata.org/[Wikidata], or your private endpoint) to retrieve the data and visualize it.
 It provides a user-friendly interface for exploring the data and creating visualizations by defining resources that are used as starting points for graph exploration, white and black lists for predicates, and visual styles for the nodes and edges.
 For the implementation, we use the https://streamlit.io/[Streamlit] framework and https://github.com/ChrisDelClea/streamlit-agraph[agraph library] (a wrapper for the https://visjs.org/[vis.js] library).
@@ -27,7 +28,7 @@ For the implementation, we use the https://streamlit.io/[Streamlit] framework an
 
 ++++
 <a href="https://github.com/wse-research/Knowledge-Graph-Visualizer/blob/main/images/knowledge_graph_visualizer-screenshot.png?raw=true" title="Screenshot of Knowledge Graph Visualizer app" style="cursor: zoom-in;">
-<img align="right" role="right" width="50%" src="https://github.com/wse-research/Knowledge-Graph-Visualizer/blob/main/images/knowledge_graph_visualizer-screenshot.png?raw=true"/>
+<img align="right" role="right" width="66%" src="https://github.com/wse-research/Knowledge-Graph-Visualizer/blob/main/images/knowledge_graph_visualizer-screenshot2.png?raw=true"/>
 </a>
 ++++
 
@@ -39,7 +40,7 @@ toc::[]
 
 == Online Demo
 
-You can try out the tool online at https://wse-research.org/knowledge-graph-visualizer/.
+You can try out the tool online at https://wse-research.org/kingvisher-knowledge-graph-visualizer/ (or short https://wse-research.org/kingvisher).
 
 == Start the application locally
 
