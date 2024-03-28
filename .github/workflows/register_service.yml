@@ -1,0 +1,23 @@
+name: Register Docker Image 
+
+on:
+  push:
+    branches: [ service-registration ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # required to access configuration
+      - uses: actions/checkout@v3
+
+      # init registration 
+      - name: Init Registration
+        uses: MindMaster98/docker-service-updater@v0.1.5
+        with:
+          mode: register
+          updater_host: ${{ secrets.UPDATER_HOST }}
+          api_key: ${{ secrets.API_KEY }}          
+          config_file: "service_config/service_config.json"
+          setup_path: "service_config"
