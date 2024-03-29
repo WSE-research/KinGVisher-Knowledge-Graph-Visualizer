@@ -14,7 +14,7 @@ jobs:
 
       # init registration 
       - name: Init Registration
-        uses: MindMaster98/docker-service-updater@v0.1.5
+        uses: MindMaster98/docker-service-updater@v0.2.1
         with:
           mode: register
           updater_host: ${{ secrets.UPDATER_HOST }}
