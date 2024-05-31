@@ -1,5 +1,6 @@
 import streamlit as st
 from streamlit.components.v1 import html
+from streamlit_javascript import st_javascript
 
 from PIL import Image
 import base64
@@ -13,7 +14,7 @@ from decouple import config
 from util import include_css, download_image, save_uploaded_file, replace_values_in_index_html
 import json
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
-from pprint import pprint   
+from pprint import pprint, pformat   
 import streamlit as st
 import streamlit.components.v1 as components  # Import Streamlit
 import pandas as pd
@@ -110,6 +111,7 @@ blacklist_properties = []
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
+logging.info("Starting ...")
 
 # if the dry run is enabled, we will stop the script
 if config('DRY_RUN', default=False, cast=bool):
@@ -138,13 +140,21 @@ include_css(st, [
             "css/style_sttags.css"]
 )  
 
-
+logging.info("Starting ...")
 with open(PAGE_IMAGE, "rb") as f:
+    # Read the optional file VERSION.txt containing version number
+    version = ""
+    version_long = ""
+    if os.path.exists("VERSION.txt"):
+        with open("VERSION.txt", "r") as version_file:
+            version = version_file.read().strip()
+            version_long = ", current version " + version 
+    
     image_data = base64.b64encode(f.read()).decode("utf-8")
     st.sidebar.markdown(
         f"""
         <div style="display:table;margin-top:-10%;margin-bottom:15%;margin-left:auto;margin-right:auto;text-align:center">
-            <a href="{GITHUB_REPO}" title="go to GitHub repository"><img src="data:image/png;base64,{image_data}" class="app_logo"></a>
+            <a href="{GITHUB_REPO}" title="go to GitHub repository{version_long}"><img src="data:image/png;base64,{image_data}" class="app_logo"></a>
         </div>
         """,
         unsafe_allow_html=True,
@@ -152,7 +162,7 @@ with open(PAGE_IMAGE, "rb") as f:
 
 sparql_endpoint = st.sidebar.text_input("SPARQL endpoint:", key="sparql_endpoint", value=DBPEDIA_ENDPOINT, help="SPARQL endpoint to query, e.g., %s or %s" % (DBPEDIA_ENDPOINT, WIKIDATA_ENDPOINT))
 
-specific_graph = st.sidebar.text_input("Specific graph:", key="specific_graph", help="optional parameter")
+specific_graph = st.sidebar.text_input("Specific graph:", key="specific_graph", help="optional parameter: if empty, the default graph will be used")
 
 
 if sparql_endpoint != None and validators.url(sparql_endpoint):
@@ -191,7 +201,6 @@ def get_graph_expression(graph):
 
 
 def execute_start_resource_query_convert(sparql_endpoint, graph, all_start_values, p_values, p_blocked_values, limit, use_edges):
-    
     
     size = 25
     start_values_chunks = [all_start_values[x:x+size] for x in range(0, len(all_start_values), size)]
@@ -401,6 +410,10 @@ def get_all_properties(sparql_endpoint, graph=None):
     
     cleaned_sparql_endpoint = sparql_endpoint.replace(":", "_").replace("/", "_").replace(".", "_")
     cache_filename= LOCAL_CACHE_FOLDER + "/all_properties_" + cleaned_sparql_endpoint + "_" + str(graph) + ".json"
+    
+    # check if directory exists
+    if not os.path.exists(LOCAL_CACHE_FOLDER):
+        os.makedirs(LOCAL_CACHE_FOLDER)
     
     logging.info("checking for cache file: " + cache_filename + " ...")
     
@@ -823,10 +836,12 @@ else:
     use_edges = INGOING_AND_OUTGOING_EDGES
 
 
-number_of_results = st.sidebar.slider("number of edges",min_value=10, max_value=1000, value=10, step=10)
+number_of_results = st.sidebar.slider("number of edges",min_value=10, max_value=1000, value=10, step=10, help="maximum number of edges to be shown")
 if number_of_results >= 300:
     st.sidebar.info("Please be patient, this might take a while depending on your browser's computing power.")
-    
+
+height_visualization = st.sidebar.slider("height of visualization (in pixels)",min_value=300, max_value=2000, value=800, step=100, help="the width is set to 100% of the browser window")
+
 shape = st.sidebar.selectbox('shape of nodes',['box','ellipse','text','dot','square','star','triangle','triangleDown'], index=0) # ,'circle','database','image','circularImage','diamond','hexagon'
 node_font_size = st.sidebar.slider("node font size",min_value=1, max_value=20, value=8)
 edge_font_size = st.sidebar.slider("edge font size",min_value=1, max_value=20, value=8)
@@ -971,7 +986,7 @@ for result in data + labels:
 
 # https://github.com/ChrisDelClea/streamlit-agraph/blob/master/streamlit_agraph/config.py
 config = Config(width="100%",
-                height=800,
+                height=height_visualization,
                 autoResize=True,
                 groups={}, # dict of node groups (refer to https://visjs.github.io/vis-network/docs/network/)
                 directed=True, 
@@ -1077,7 +1092,7 @@ if return_value is not None:
     except Exception as e:
         st.error(e)
 
-
+st.info("You might save the current visualization as a PNG file by right-clicking on the graph and selecting 'Save image as...'.")
 
 st.markdown("""
 ---

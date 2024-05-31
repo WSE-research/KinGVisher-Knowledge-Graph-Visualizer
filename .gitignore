@@ -159,3 +159,6 @@ cython_debug/
 
 # for storing local caching files
 local_cache/*json
+
+VERSION.txt
+

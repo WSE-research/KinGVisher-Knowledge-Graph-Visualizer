@@ -4,5 +4,11 @@ section[data-testid="stSidebar"] img {
 }
 
 section[data-testid="stSidebar"] img:hover {
-    filter: drop-shadow(0.25ex 0.25ex 0.25ex #333); 
+    filter: drop-shadow(0.25ex 0.25ex 0.25ex #333);
+}
+
+.version_info {
+    font-size: 60%;
+    color: #666;
+    text-align: center;
 }
