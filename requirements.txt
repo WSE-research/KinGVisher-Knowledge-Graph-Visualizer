@@ -1,6 +1,6 @@
 Markdown==3.7
 pandas==2.2.2
-Pillow==9.3.0
+Pillow==11.1.0
 python-decouple==3.8
 requests==2.32.3
 seaborn==0.13.2
