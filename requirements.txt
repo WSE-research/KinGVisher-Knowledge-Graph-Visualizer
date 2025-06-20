@@ -1,4 +1,4 @@
-Markdown==3.8
+Markdown==3.8.2
 pandas==2.2.3
 Pillow==9.3.0
 python-decouple==3.8
