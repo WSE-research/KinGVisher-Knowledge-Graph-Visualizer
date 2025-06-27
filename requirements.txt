@@ -5,7 +5,7 @@ python-decouple==3.8
 requests==2.32.4
 seaborn==0.13.2
 SPARQLWrapper==2.0.0
-streamlit==1.45.1
+streamlit==1.46.1
 streamlit_agraph==0.0.45
 streamlit_tags==1.2.8
 validators==0.35.0
