@@ -1,4 +1,4 @@
-FROM python:3.10-slim-buster 
+FROM python:3.10-slim-trixie
 
 ARG SERVICE_PORT=8501
 ENV SERVICE_PORT=${SERVICE_PORT}
