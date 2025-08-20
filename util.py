@@ -110,7 +110,7 @@ def replace_values_in_index_html(st, activate, new_title, new_meta_description=N
         with open(page_icon_with_path, "rb") as image_file:
             page_icon = Image.open(image_file)
             # just use a size of 128x128 for the embedded favicon
-            page_icon = page_icon.resize((128, 128), Image.ANTIALIAS)
+            page_icon = page_icon.resize((128, 128), Image.LANCZOS)
             encoded_string = im_2_b64(page_icon)
             favicon_base64 = "data:image/png;base64," + encoded_string.decode('utf-8')
 
