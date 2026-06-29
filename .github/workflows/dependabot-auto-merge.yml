@@ -24,7 +24,7 @@ jobs:
     outputs:
       eligible: ${{ steps.gate.outputs.eligible }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: gate
         name: Require significant coverage + an e2e test
         run: |
@@ -58,7 +58,7 @@ jobs:
     steps:
       - name: Fetch Dependabot metadata
         id: meta
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Enable auto-merge for patch & minor updates

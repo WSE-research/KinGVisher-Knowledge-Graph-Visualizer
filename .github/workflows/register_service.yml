@@ -10,7 +10,7 @@ jobs:
 
     steps:
       # required to access configuration
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # init registration 
       - name: Init Registration
