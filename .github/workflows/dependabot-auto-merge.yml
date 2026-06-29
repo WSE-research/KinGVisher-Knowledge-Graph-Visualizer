@@ -1,0 +1,69 @@
+# Auto-merge Dependabot patch/minor PRs — but ONLY when the repository meets the
+# organisation's auto-merge bar:
+#   (1) a significant coverage gate is configured in ci.yml (cov-fail-under >= 70), and
+#   (2) at least one end-to-end test exists (tests/e2e/).
+# The `eligibility` job enforces (1) and (2). The actual merge still waits for the
+# required status checks (ci.yml test + e2e) via `gh pr merge --auto`, so a red
+# build never merges.
+#
+# Prerequisites in repo settings:
+#   * Settings → General → "Allow auto-merge" enabled.
+#   * Branch protection requires the "test" and "e2e" checks.
+name: Dependabot auto-merge
+
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  eligibility:
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.gate.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: gate
+        name: Require significant coverage + an e2e test
+        run: |
+          set -euo pipefail
+          eligible=true
+
+          # (1) significant coverage gate
+          threshold=$(grep -ohE 'cov-fail-under=[0-9]+' .github/workflows/ci.yml \
+                        | grep -oE '[0-9]+' | sort -n | head -1 || true)
+          if [ -z "${threshold:-}" ] || [ "$threshold" -lt 70 ]; then
+            echo "::warning::No significant coverage gate (cov-fail-under >= 70) found — auto-merge disabled."
+            eligible=false
+          else
+            echo "Coverage gate: cov-fail-under=$threshold"
+          fi
+
+          # (2) at least one end-to-end test
+          if ! compgen -G 'tests/e2e/*.py' > /dev/null; then
+            echo "::warning::No end-to-end test found under tests/e2e/ — auto-merge disabled."
+            eligible=false
+          else
+            echo "Found end-to-end test(s) under tests/e2e/."
+          fi
+
+          echo "eligible=$eligible" >> "$GITHUB_OUTPUT"
+
+  auto-merge:
+    needs: eligibility
+    if: ${{ needs.eligibility.outputs.eligible == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enable auto-merge for patch & minor updates
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor' }}
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
