@@ -1,0 +1,110 @@
+# CI for KinGVisher.
+# Replaces the old docker-image.yml: tests + e2e now gate every PR and every
+# release, and the Docker image is built/pushed/registered on tag only AFTER
+# tests pass (the `docker` job `needs` test + e2e).
+#
+# Once WSE-research/.github hosts the shared reusable workflows, the `test` and
+# `docker` jobs can be slimmed to `uses:` callers — see org-github-repo/README.md.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["*"]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install ruff
+      # Lint the importable logic and the tests (the large UI script is excluded
+      # for now; drop the path filter once it has been cleaned up).
+      - run: ruff check util.py tests/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Unit tests with coverage gate
+        run: |
+          pytest tests/unit \
+            --cov=util --cov-report=term-missing --cov-report=xml \
+            --cov-fail-under=80 --junitxml=pytest-report.xml
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: End-to-end app boot tests
+        run: pytest tests/e2e -m e2e -v
+
+  docker:
+    # Build/push the image only after tests pass.
+    needs: [test, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Save tag to file if release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo ${{ github.ref_name }} > VERSION.txt
+      - name: Build the Docker image (PR/branch — no push)
+        if: ${{ ! startsWith(github.ref, 'refs/tags/') }}
+        run: docker build . --file Dockerfile --tag tmp:latest
+      - name: Build the Docker image for tag release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: docker build . --file Dockerfile --tag ${{ secrets.DOCKER_IMAGE_NAME }}:latest
+      - name: Docker Login
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Tag latest docker image
+        if: startsWith(github.ref, 'refs/tags/')
+        run: docker tag ${{ secrets.DOCKER_IMAGE_NAME }}:latest wseresearch/${{ secrets.DOCKER_IMAGE_NAME }}:latest
+      - name: Tag docker image version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: docker tag ${{ secrets.DOCKER_IMAGE_NAME }}:latest "wseresearch/${{ secrets.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}"
+      - name: Push latest docker image
+        if: startsWith(github.ref, 'refs/tags/')
+        run: docker push wseresearch/${{ secrets.DOCKER_IMAGE_NAME }}:latest
+      - name: Push docker image version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: docker push "wseresearch/${{ secrets.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}"
+      - name: Init update
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: WSE-research/docker-service-updater@v0.2.1
+        with:
+          updater_host: ${{ secrets.UPDATER_HOST }}
+          api_key: ${{ secrets.API_KEY }}
