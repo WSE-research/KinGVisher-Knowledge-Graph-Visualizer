@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install ruff
+      - run: pip install ruff==0.15.22
       # Lint the importable logic and the tests (the large UI script is excluded
       # for now; drop the path filter once it has been cleaned up).
       - run: ruff check util.py tests/
