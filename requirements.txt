@@ -1,4 +1,4 @@
-pandas==3.0.3
+pandas==3.0.5
 Markdown==3.10.2
 Pillow==12.3.0
 python-decouple==3.8
