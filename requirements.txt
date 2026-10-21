@@ -1,11 +1,11 @@
 pandas==3.0.6
-Markdown==3.11
+Markdown==3.11.1
 Pillow==12.3.0
 python-decouple==3.8
 requests==2.34.2
 seaborn==0.13.2
 SPARQLWrapper==2.0.0
-streamlit==1.65.0
+streamlit==1.66.0
 streamlit_agraph==0.0.45
 streamlit_tags==1.2.8
 validators==0.36.0
