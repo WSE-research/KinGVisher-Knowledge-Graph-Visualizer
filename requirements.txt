@@ -1,5 +1,5 @@
-pandas==3.0.6
-Markdown==3.11.1
+pandas==3.1.0
+Markdown==3.11.2
 Pillow==13.0.0
 python-decouple==3.8
 requests==2.34.2
